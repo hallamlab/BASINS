@@ -1,0 +1,50 @@
+paths:
+  output_dir: /cephfs/rjm_work/basin_output
+  work_dir: /cephfs/rjm_work/si_asv/nf_work_basin
+  conda_cache_dir: /cephfs/rjm_work/si_asv/conda_cache
+
+resources:
+  threads: 12
+
+biochem:
+  enabled: true
+  table_a: /cephfs/rjm_work/si_asv/ref_db/SI_JA_Compiled_Geochem_Dec_09_Outlier_RM.csv
+  table_b: /cephfs/rjm_work/si_asv/ref_db/SI_JA_Compiled_CTD_Data_Dec_18_2025_Outlier_RM.csv
+  output_root: /cephfs/rjm_work/basin_output/biochem_pipeline
+  cleaned_density_filename: 02_oxygen_best_available_density_RJM.tsv
+  clean_keep_cols:
+    - cruise_year_month_depth
+    - Cruise
+    - Year
+    - Month
+    - Day
+    - Depth
+    - Phosphate
+    - Silicate
+    - Nitrite
+    - Nitrate
+    - Ammonium
+    - Hydrogen Sulfide
+    - Nitrous Oxide
+    - Methane
+    - Temperature
+    - Salinity
+    - Oxygen
+    - Density
+    - Fe
+    - Dimethyl Sulfide
+  clean_drop_cols: []
+  clean_rename_map:
+    PO4: Phosphate
+    SI: Silicate
+    NO2: Nitrite
+    NO3: Nitrate
+    NH4: Ammonium
+    H2S: Hydrogen Sulfide
+    N2O: Nitrous Oxide
+    CH4: Methane
+    Oxygen_best_available: Oxygen
+    density_kg_m3: Density
+  feature_cols: Oxygen,Nitrate,Nitrite,Nitrous Oxide,Ammonium,Hydrogen Sulfide,Methane,Phosphate,Silicate,Temperature,Salinity,Density,Fe,Dimethyl Sulfide
+  gmm_k: auto
+  eof_pcs: 1,2,4
