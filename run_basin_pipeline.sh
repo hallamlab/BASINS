@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_PATH="${SCRIPT_DIR}/$(basename "$0")"
 CONTROL_ENV_DIR="${CONTROL_ENV_DIR:-${SCRIPT_DIR}/.controller_env}"
+ORIGINAL_ARGS=("$@")
 
 PROCESS_ORDER=(
   BIOCHEM_MERGE
@@ -25,6 +26,7 @@ PROCESS_ORDER=(
   BIOCHEM_EOF_STATE_CLUSTER
   BIOCHEM_EOF_MODE_PLOTS
   BIOCHEM_WITHIN_GMM_HDBSCAN
+  MASTER_SUMMARY
 )
 
 usage() {
@@ -56,7 +58,7 @@ if [[ -z "${IN_CONTROLLER_ENV:-}" ]]; then
   if [[ ! -d "$CONTROL_ENV_DIR" ]]; then
     echo "[controller] Creating mamba env at $CONTROL_ENV_DIR"
     mamba env create --yes --prefix "$CONTROL_ENV_DIR" --file "${SCRIPT_DIR}/processes/shared_envs/controller.yml"
-  elif [[ ! -x "$CONTROL_ENV_DIR/bin/nextflow" || ! -x "$CONTROL_ENV_DIR/bin/yq" ]]; then
+  elif [[ ! -x "$CONTROL_ENV_DIR/bin/nextflow" || ! -x "$CONTROL_ENV_DIR/bin/yq" || ! -x "$CONTROL_ENV_DIR/bin/python" ]]; then
     echo "[controller] Repairing incomplete controller env at $CONTROL_ENV_DIR"
     mamba env update --prune --prefix "$CONTROL_ENV_DIR" --file "${SCRIPT_DIR}/processes/shared_envs/controller.yml"
   fi
@@ -251,30 +253,106 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   exit 1
 fi
 
+CONFIG_FILE="$(realpath "$CONFIG_FILE")"
+CONFIG_ROOT="$(dirname "$CONFIG_FILE")"
+
+resolve_config_path() {
+  local value="$1"
+  if [[ "$value" = /* ]]; then
+    realpath -m "$value"
+  else
+    realpath -m "${CONFIG_ROOT}/${value}"
+  fi
+}
+
 WORK_DIR=$(yq -r '.paths.work_dir // empty' "$CONFIG_FILE")
 OUTPUT_DIR=$(yq -r '.paths.output_dir // empty' "$CONFIG_FILE")
 CONDA_CACHE_DIR=$(yq -r '.paths.conda_cache_dir // empty' "$CONFIG_FILE")
-
-if [[ -z "$WORK_DIR" ]]; then
-  echo "paths.work_dir must be set in $CONFIG_FILE" >&2
-  exit 1
-fi
+RUNTIME_DIR=$(yq -r '.paths.runtime_dir // empty' "$CONFIG_FILE")
+KEEP_RUNTIME_DIR=$(yq -r '.paths.keep_runtime_dir // true' "$CONFIG_FILE")
 
 if [[ -z "$OUTPUT_DIR" ]]; then
   echo "paths.output_dir must be set in $CONFIG_FILE" >&2
   exit 1
 fi
 
-mkdir -p "$WORK_DIR"
-
-if [[ -z "$CONDA_CACHE_DIR" || "$CONDA_CACHE_DIR" == "null" ]]; then
-  CONDA_CACHE_DIR="${OUTPUT_DIR}/.conda_cache"
+OUTPUT_DIR="$(resolve_config_path "$OUTPUT_DIR")"
+if [[ -z "$RUNTIME_DIR" || "$RUNTIME_DIR" == "null" ]]; then
+  RUNTIME_DIR="${OUTPUT_DIR}/.basin"
+else
+  RUNTIME_DIR="$(resolve_config_path "$RUNTIME_DIR")"
 fi
+if [[ -z "$WORK_DIR" || "$WORK_DIR" == "null" ]]; then
+  WORK_DIR="${RUNTIME_DIR}/nf_work"
+else
+  WORK_DIR="$(resolve_config_path "$WORK_DIR")"
+fi
+if [[ -z "$CONDA_CACHE_DIR" || "$CONDA_CACHE_DIR" == "null" ]]; then
+  CONDA_CACHE_DIR="${RUNTIME_DIR}/conda_cache"
+else
+  CONDA_CACHE_DIR="$(resolve_config_path "$CONDA_CACHE_DIR")"
+fi
+PUBLICATION_STAGING_DIR="${RUNTIME_DIR}/publication_staging"
 
-mkdir -p "$CONDA_CACHE_DIR"
+case "${KEEP_RUNTIME_DIR,,}" in
+  true|false) ;;
+  *) echo "paths.keep_runtime_dir must be true or false: ${KEEP_RUNTIME_DIR}" >&2; exit 1 ;;
+esac
+
+mkdir -p "$WORK_DIR" "$CONDA_CACHE_DIR" "${CONDA_CACHE_DIR}/pkgs"
+mkdir -p "${OUTPUT_DIR}/modules" "${OUTPUT_DIR}/intermediates" \
+  "${OUTPUT_DIR}/references" "${OUTPUT_DIR}/summary" "${OUTPUT_DIR}/logs"
+
+exec 7>"${CONDA_CACHE_DIR}/.basin-run.lock"
+if ! flock -n 7; then
+  echo "Another BASIN run is using Conda cache: ${CONDA_CACHE_DIR}" >&2
+  echo "Wait for it to finish or configure another paths.conda_cache_dir." >&2
+  exit 1
+fi
+stale_env_locks=()
+while IFS= read -r -d '' stale_lock; do
+  stale_env_locks+=("$stale_lock")
+done < <(find "$CONDA_CACHE_DIR" -maxdepth 1 -type f -name '.env-*.lock' -print0)
+if (( ${#stale_env_locks[@]} > 0 )); then
+  rm -f "${stale_env_locks[@]}"
+  echo "[controller] Removed ${#stale_env_locks[@]} stale Nextflow Conda environment lock marker(s)."
+fi
+if [[ "$RESUME_ENABLED" -eq 0 && -d "$PUBLICATION_STAGING_DIR" ]]; then
+  staging_real="$(realpath -m "$PUBLICATION_STAGING_DIR")"
+  runtime_real="$(realpath -m "$RUNTIME_DIR")"
+  if [[ "$staging_real" == "$runtime_real"/* ]]; then
+    rm -rf "$staging_real"
+  else
+    echo "Refusing to clear publication staging outside runtime directory: ${staging_real}" >&2
+    exit 1
+  fi
+fi
+mkdir -p "${PUBLICATION_STAGING_DIR}/logs"
+
+has_nextflow_arg() {
+  local expected="$1" arg
+  for arg in "${NEXTFLOW_ARGS[@]}"; do
+    [[ "$arg" == "$expected" || "$arg" == "${expected}="* ]] && return 0
+  done
+  return 1
+}
+
+DEFAULT_REPORT_ARGS=()
+has_nextflow_arg -with-report || DEFAULT_REPORT_ARGS+=(-with-report "${PUBLICATION_STAGING_DIR}/logs/nextflow_report.html")
+has_nextflow_arg -with-timeline || DEFAULT_REPORT_ARGS+=(-with-timeline "${PUBLICATION_STAGING_DIR}/logs/nextflow_timeline.html")
+has_nextflow_arg -with-trace || DEFAULT_REPORT_ARGS+=(-with-trace "${PUBLICATION_STAGING_DIR}/logs/nextflow_trace.tsv")
+has_nextflow_arg -with-dag || DEFAULT_REPORT_ARGS+=(-with-dag "${PUBLICATION_STAGING_DIR}/logs/nextflow_dag.html")
+rm -f "${PUBLICATION_STAGING_DIR}/logs/nextflow_report.html" \
+  "${PUBLICATION_STAGING_DIR}/logs/nextflow_timeline.html" \
+  "${PUBLICATION_STAGING_DIR}/logs/nextflow_trace.tsv" \
+  "${PUBLICATION_STAGING_DIR}/logs/nextflow_dag.html"
+printf '%q ' "$SCRIPT_PATH" "${ORIGINAL_ARGS[@]}" > "${PUBLICATION_STAGING_DIR}/logs/launch_command.txt"
+printf '\n' >> "${PUBLICATION_STAGING_DIR}/logs/launch_command.txt"
+nextflow -version > "${PUBLICATION_STAGING_DIR}/logs/nextflow_version.txt" 2>&1
 
 export NXF_WORK="$WORK_DIR"
 export NXF_CONDA_CACHEDIR="$CONDA_CACHE_DIR"
+export CONDA_PKGS_DIRS="${CONDA_CACHE_DIR}/pkgs"
 export NXF_SYNTAX_PARSER="${NXF_SYNTAX_PARSER:-v1}"
 
 BASELINE_RUN="$(select_baseline_run)"
@@ -340,4 +418,35 @@ nextflow run "${SCRIPT_DIR}/basin_pipeline.nf" \
   "${RESUME_ARGS[@]}" \
   "${NEXTFLOW_RERUN_ARGS[@]}" \
   -w "$NXF_WORK" \
-  "${NEXTFLOW_ARGS[@]}"
+  "${DEFAULT_REPORT_ARGS[@]}" \
+  "${NEXTFLOW_ARGS[@]}" 2>&1 | tee "${PUBLICATION_STAGING_DIR}/logs/controller.log"
+
+COMPLETED_RUN="$(nextflow log -q 2>/dev/null | tail -n 1 || true)"
+if [[ -n "$COMPLETED_RUN" ]]; then
+  nextflow log "$COMPLETED_RUN" -f 'process,hash,workdir,status,exit,duration' \
+    > "${PUBLICATION_STAGING_DIR}/logs/task_execution.tsv" || true
+fi
+if [[ -f "${SCRIPT_DIR}/.nextflow.log" ]]; then
+  cp "${SCRIPT_DIR}/.nextflow.log" "${PUBLICATION_STAGING_DIR}/logs/nextflow.log"
+fi
+
+python "${SCRIPT_DIR}/processes/output_layout/organize_outputs.py" \
+  --staging-dir "$PUBLICATION_STAGING_DIR" \
+  --output-dir "$OUTPUT_DIR" \
+  --config "$CONFIG_FILE"
+
+if [[ "${KEEP_RUNTIME_DIR,,}" == "true" ]]; then
+  echo "[controller] Retaining Nextflow resume state: ${RUNTIME_DIR}"
+else
+  runtime_real="$(realpath -m "$RUNTIME_DIR")"
+  output_real="$(realpath -m "$OUTPUT_DIR")"
+  script_real="$(realpath -m "$SCRIPT_DIR")"
+  if [[ "$runtime_real" == "/" || "$runtime_real" == "$output_real" ||
+        "$output_real" == "$runtime_real"/* || "$script_real" == "$runtime_real" ||
+        "$script_real" == "$runtime_real"/* ]]; then
+    echo "Refusing to remove unsafe runtime directory: ${runtime_real}" >&2
+    exit 1
+  fi
+  rm -rf "$runtime_real"
+  echo "[controller] Removed runtime directory after successful publication: ${runtime_real}"
+fi

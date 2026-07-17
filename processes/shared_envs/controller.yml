@@ -6,4 +6,5 @@ dependencies:
   - jq
   - nextflow
   - openjdk>=17,<27
+  - python>=3.10
   - yq

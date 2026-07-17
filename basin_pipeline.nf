@@ -11,7 +11,7 @@ try {
     paramsMap = [:]
 }
 
-def inlineKeys = ['paths', 'resources', 'biochem', 'biochem_pre_asv', 'environments', 'config_root', 'pipeline_config']
+def inlineKeys = ['paths', 'resources', 'biochem', 'biochem_pre_asv', 'master_summary', 'environments', 'config_root', 'pipeline_config']
 def hasInlineConfig = inlineKeys.any { paramsMap.containsKey(it) }
 def config
 File configFile = null
@@ -90,8 +90,12 @@ def listFromConfig = { raw ->
     return []
 }
 
-def outputDir = resolvePath(config.paths?.output_dir)
-assert outputDir : "paths.output_dir must be provided in the YAML config"
+def publicOutputDir = resolvePath(config.paths?.output_dir)
+assert publicOutputDir : "paths.output_dir must be provided in the YAML config"
+def runtimeDir = config.paths?.runtime_dir ? resolvePath(config.paths.runtime_dir) : new File(publicOutputDir, '.basin').canonicalPath
+def outputDir = new File(runtimeDir, 'publication_staging').canonicalPath
+new File(outputDir).mkdirs()
+log.info "Using BASIN publication staging directory: ${outputDir}"
 
 def workDirOverride = config.paths?.work_dir ? resolvePath(config.paths.work_dir) : null
 def condaCacheOverride = config.paths?.conda_cache_dir ? resolvePath(config.paths.conda_cache_dir) : null
@@ -101,7 +105,7 @@ if( workDirOverride ) {
     workflow.workDir = java.nio.file.Paths.get(workDirFile.canonicalPath)
     log.info "Using custom Nextflow work directory: ${workflow.workDir}"
 }
-def resolvedCondaCacheDir = condaCacheOverride ?: new File(outputDir, ".conda_cache").canonicalPath
+def resolvedCondaCacheDir = condaCacheOverride ?: new File(runtimeDir, "conda_cache").canonicalPath
 def condaCacheDirFile = new File(resolvedCondaCacheDir)
 condaCacheDirFile.mkdirs()
 System.setProperty('NXF_CONDA_CACHEDIR', condaCacheDirFile.canonicalPath)
@@ -112,6 +116,8 @@ int pipelineThreads = config.resources?.threads ? (config.resources.threads as i
 
 def biochemConfig = config.biochem ?: (config.biochem_pre_asv ?: [:])
 boolean biochemEnabled = biochemConfig.containsKey('enabled') ? (biochemConfig.enabled as boolean) : true
+def masterSummaryConfig = config.master_summary ?: [:]
+boolean masterSummaryEnabled = masterSummaryConfig.containsKey('enabled') ? (masterSummaryConfig.enabled as boolean) : true
 def biochemTableAPath = biochemConfig.table_a ? resolveOptionalPath(biochemConfig.table_a, configRoot) : null
 def biochemTableBPath = biochemConfig.table_b ? resolveOptionalPath(biochemConfig.table_b, configRoot) : null
 if( biochemEnabled && (!biochemTableAPath || !new File(biochemTableAPath).exists()) ) {
@@ -121,7 +127,26 @@ if( biochemEnabled && (!biochemTableBPath || !new File(biochemTableBPath).exists
     exit 1, "biochem.table_b not found: ${biochemTableBPath}"
 }
 
-def biochemOutputRoot = biochemConfig.output_root ? resolveOutputRelative(biochemConfig.output_root.toString(), outputDir) : outputDir
+def configuredBiochemOutput = biochemConfig.output_root?.toString()?.trim()
+def biochemOutputRoot = outputDir
+if( configuredBiochemOutput ) {
+    def configuredFile = new File(configuredBiochemOutput)
+    if( configuredFile.isAbsolute() ) {
+        def publicRoot = new File(publicOutputDir).canonicalFile
+        def requested = configuredFile.canonicalFile
+        def publicPrefix = publicRoot.path + File.separator
+        if( requested.path == publicRoot.path ) {
+            biochemOutputRoot = outputDir
+        } else if( requested.path.startsWith(publicPrefix) ) {
+            def relative = publicRoot.toPath().relativize(requested.toPath()).toString()
+            biochemOutputRoot = new File(outputDir, relative).canonicalPath
+        } else {
+            exit 1, "biochem.output_root must be empty, relative, or located under paths.output_dir for atomic publication: ${requested}"
+        }
+    } else {
+        biochemOutputRoot = new File(outputDir, configuredBiochemOutput).canonicalPath
+    }
+}
 def biochemProcessingDirAbs = new File(biochemOutputRoot, 'biochem_processing').canonicalPath
 def biochemStratMetricsDirAbs = new File(biochemProcessingDirAbs, 'stratification_metrics').canonicalPath
 def biochemPcaDirAbs = new File(biochemOutputRoot, 'env_pca').canonicalPath
@@ -139,6 +164,7 @@ def biochemEofPcaDirAbs = new File(biochemOutputRoot, 'eof_pca').canonicalPath
 def biochemEofStatesDirAbs = new File(biochemOutputRoot, 'eof_states').canonicalPath
 def biochemEofPlotsDirAbs = new File(biochemOutputRoot, 'eof_plots').canonicalPath
 def biochemWithinGmmDirAbs = new File(biochemGmmDirAbs, 'within_gmm_hdbscan').canonicalPath
+def biochemMasterSummaryDirAbs = new File(biochemOutputRoot, 'master_summary').canonicalPath
 def biochemMergedOxygenPath = new File(biochemProcessingDirAbs, '02_oxygen_best_available.tsv').canonicalPath
 def biochemDensityPath = new File(biochemProcessingDirAbs, '02_oxygen_best_available_density.tsv').canonicalPath
 def biochemDensityCleanedFile = biochemConfig.cleaned_density_filename ?: '02_oxygen_best_available_density_RJM.tsv'
@@ -194,6 +220,7 @@ def biochemEofPipelineCondaEnvPath = resolveBiochemStepEnv('biochem_eof_pipeline
 def biochemEofStateCondaEnvPath = resolveBiochemStepEnv('biochem_eof_state_cluster')
 def biochemEofModeCondaEnvPath = resolveBiochemStepEnv('biochem_eof_mode_plots')
 def biochemWithinGmmCondaEnvPath = resolveBiochemStepEnv('biochem_within_gmm')
+def biochemMasterSummaryCondaEnvPath = resolveBiochemStepEnv('master_summary')
 
 def scriptPath = { String relativePath ->
     def scriptFile = new File("${projectDir}/${relativePath}")
@@ -222,6 +249,7 @@ def biochemEofPipelineScriptPath = scriptPath('processes/eof_pipeline/env_eof_pi
 def biochemEofStateScriptPath = scriptPath('processes/eof_state_cluster/eof_state_clustering.py')
 def biochemEofModePlotScriptPath = scriptPath('processes/eof_mode_plots/eof_mode_plots.py')
 def biochemWithinGmmScriptPath = scriptPath('processes/within_gmm_hdbscan/env_within_gmm_hdbscan.py')
+def biochemMasterSummaryScriptPath = scriptPath('processes/master_summary/build_basin_summary.py')
 
 workflow {
     if( !biochemEnabled ) {
@@ -247,7 +275,10 @@ workflow {
     b16 = BIOCHEM_EOF_PIPELINE(b15.done)
     b17 = BIOCHEM_EOF_STATE_CLUSTER(b16.done)
     b18 = BIOCHEM_EOF_MODE_PLOTS(b17.done)
-    BIOCHEM_WITHIN_GMM_HDBSCAN(b18.done)
+    b19 = BIOCHEM_WITHIN_GMM_HDBSCAN(b18.done)
+    if( masterSummaryEnabled ) {
+        MASTER_SUMMARY(b19.done)
+    }
 }
 
 process BIOCHEM_MERGE {
@@ -821,5 +852,27 @@ python "${biochemWithinGmmScriptPath}" \\
   --high-conf-maxprob 0.80 \\
   --strict-unique-ids
 touch biochem_within_gmm.done
+"""
+}
+
+process MASTER_SUMMARY {
+    cpus 1
+    conda "${biochemMasterSummaryCondaEnvPath}"
+
+    input:
+    path(prev_done)
+
+    output:
+    path("master_summary.done"), emit: done
+
+    script:
+    """
+set -euo pipefail
+mkdir -p "${biochemMasterSummaryDirAbs}"
+python "${biochemMasterSummaryScriptPath}" \
+  --input-root "${biochemOutputRoot}" \
+  --output-dir "${biochemMasterSummaryDirAbs}"
+[[ -f "${biochemMasterSummaryDirAbs}/basin_run_overview.tsv" ]] || { echo "Missing BASIN master summary" >&2; exit 1; }
+touch master_summary.done
 """
 }

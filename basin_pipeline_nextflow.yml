@@ -1,7 +1,11 @@
 paths:
   output_dir: /abs/path/biochem_output
-  work_dir: /abs/path/biochem_output/nf_work
-  conda_cache_dir: /abs/path/biochem_output/conda_cache
+  # Optional; defaults to <output_dir>/.basin and retains resume/publication state.
+  runtime_dir: /abs/path/biochem_output/.basin
+  keep_runtime_dir: true
+  # Optional granular overrides; omit to place them below runtime_dir.
+  work_dir: /abs/path/biochem_output/.basin/nf_work
+  conda_cache_dir: /abs/path/biochem_output/.basin/conda_cache
 
 resources:
   threads: 12
@@ -10,7 +14,9 @@ biochem:
   enabled: true
   table_a: /abs/path/SI_JA_Compiled_Geochem_Dec_09_Outlier_RM.csv
   table_b: /abs/path/SI_JA_Compiled_CTD_Data_Dec_18_2025_Outlier_RM.csv
-  output_root:
+  # Optional namespace below publication staging. `biochem_pipeline` preserves
+  # the historical BASIN/ASPIRE integration path via compatibility links.
+  output_root: biochem_pipeline
   cleaned_density_filename: 02_oxygen_best_available_density_RJM.tsv
   clean_keep_cols:
     - cruise_year_month_depth
@@ -49,6 +55,9 @@ biochem:
   gmm_k: auto
   eof_pcs: 1,2,4
 
+master_summary:
+  enabled: true
+
 environments:
   biochem: processes/shared_envs/biochem.yml
   biochem_merge: processes/shared_envs/biochem.yml
@@ -70,3 +79,4 @@ environments:
   biochem_eof_state_cluster: processes/shared_envs/biochem.yml
   biochem_eof_mode_plots: processes/shared_envs/biochem.yml
   biochem_within_gmm: processes/shared_envs/biochem.yml
+  master_summary: processes/shared_envs/biochem.yml

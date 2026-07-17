@@ -31,6 +31,8 @@ cp basin_pipeline_nextflow.yml my_basin_run.yml
 At minimum, review:
 
 - `paths.output_dir`
+- `paths.runtime_dir`
+- `paths.keep_runtime_dir`
 - `paths.work_dir`
 - `paths.conda_cache_dir`
 - `biochem.table_a`
@@ -77,6 +79,41 @@ BASIN currently expects two source tables:
 
 The first workflow stage merges these by nearest depth within station/date groups and creates `Oxygen_best_available`. Later stages expect the Salton Sea column conventions used by the current SPARK biochemistry branch. The default `biochem.clean_rename_map`, `biochem.clean_keep_cols`, and `biochem.feature_cols` in the config template match the last successful SPARK configuration.
 
+### Input contract for a new dataset
+
+`table_a` and `table_b` must be CSV files with one row per observation. Column
+names are case-sensitive. Before launching a full run, confirm that the two
+tables contain compatible cruise/station, date, and numeric depth fields and
+that the CTD table contains the temperature, salinity, oxygen, latitude, and
+longitude fields needed by the merge and density stages. Environmental
+features selected in `biochem.feature_cols` must either already exist or be
+created by `biochem.clean_rename_map`.
+
+The implementation was extracted with Salton Sea column conventions; it is not
+a schema-free table importer. For a new study, first make a small test pair
+containing several profiles and run through `BIOCHEM_EIGENVECTORS`. Inspect the
+merged, density, and cleaned tables before running clustering. BASIN does not
+convert arbitrary user units, so normalize dates, profile identifiers, depth
+units, missing values, oxygen units, and all other measurement units first.
+
+Preparation checklist:
+
+1. Make cruise/station and sampling-date identifiers agree between both files.
+2. Make depth numeric and use the same depth unit in both files.
+3. Verify fields required for density are numeric and geographically valid.
+4. Map source chemistry names to canonical names used in `feature_cols`.
+5. Remove identifiers and categorical text from `feature_cols`.
+6. Start with representative profiles and inspect intermediate tables.
+7. Only then choose `gmm_k`, EOF modes, and the production output path.
+
+## Complete Configuration Reference
+
+The field-by-field reference is in
+[`docs/CONFIGURATION.md`](docs/CONFIGURATION.md). It documents every key in
+`basin_pipeline_nextflow.yml`, including types, defaults, required inputs,
+study-specific fields, and affected stages. Read it before adapting BASIN to a
+dataset that does not already follow the SI conventions.
+
 ## Workflow Stages
 
 The wrapper's current stage order is:
@@ -100,8 +137,11 @@ The wrapper's current stage order is:
 17. `BIOCHEM_EOF_STATE_CLUSTER`
 18. `BIOCHEM_EOF_MODE_PLOTS`
 19. `BIOCHEM_WITHIN_GMM_HDBSCAN`
+20. `MASTER_SUMMARY`
 
-This extraction intentionally stops before ASV-facing modules such as `BIOCHEM_NETWORK_OVERLAY`, metadata merges, sample agreement dendrograms, and master summaries.
+This extraction intentionally stops before ASV-facing analyses such as
+`BIOCHEM_NETWORK_OVERLAY`, metadata merges, and sample-agreement dendrograms.
+Its BASIN-specific master summary inventories environmental results only.
 
 ## Scripts Used By Stage
 
@@ -128,25 +168,54 @@ This extraction intentionally stops before ASV-facing modules such as `BIOCHEM_N
 | `BIOCHEM_EOF_STATE_CLUSTER` | `processes/eof_state_cluster/eof_state_clustering.py` | Clusters EOF scores into environmental states. |
 | `BIOCHEM_EOF_MODE_PLOTS` | `processes/eof_mode_plots/eof_mode_plots.py` | Plots EOF modes and explained variance. |
 | `BIOCHEM_WITHIN_GMM_HDBSCAN` | `processes/within_gmm_hdbscan/env_within_gmm_hdbscan.py` | Detects high-confidence within-GMM HDBSCAN subclusters. |
+| `MASTER_SUMMARY` | `processes/master_summary/build_basin_summary.py` | Builds integrated run, key-output, and module inventory tables. |
+| Output finalization | `processes/output_layout/organize_outputs.py` | Atomically publishes module tables/plots, summaries, reports, logs, and compatibility links. |
 
 ## Outputs
 
-By default, outputs are written under `paths.output_dir`. If `biochem.output_root` is set, all workflow result directories are written there instead.
+Successful wrapper runs publish an ASPIRE-style output tree:
+
+```text
+<output_dir>/
+├── .basin/                 # persistent Nextflow/runtime staging
+├── modules/
+│   └── <module>/
+│       ├── tables/
+│       └── plots/
+├── intermediates/
+├── references/
+├── summary/
+│   ├── tables/
+│   ├── plots/
+│   └── report/BASIN_run_report.html
+├── logs/
+└── biochem_pipeline/       # compatibility links for legacy consumers
+```
+
+Scientific work is written below `.basin/publication_staging` and is published
+atomically only after Nextflow succeeds. The `biochem_pipeline` compatibility
+tree preserves historical paths used by ASPIRE while the canonical organized
+files live below `modules/`.
 
 Important outputs include:
 
-- `biochem_processing/02_oxygen_best_available.tsv`
-- `biochem_processing/02_oxygen_best_available_density.tsv`
-- `biochem_processing/02_oxygen_best_available_density_RJM.tsv`
-- `biochem_processing/stratification_metrics/stratification_summary.tsv`
-- `env_pca/tables/eigenvectors_scores.csv`
-- `env_pca/tables/matrix_cleaned.csv`
-- `env_compartments_selectk/SELECTED_K.txt`
-- `env_compartments_gmm/tables/compartments_assignments_smoothed.csv`
-- `env_o2_soft_compartments/tables/o2_compartments_assignments_smoothed.csv`
-- `env_hybrid_soft_compartments/tables/compartments_assignments_hybrid.csv`
-- `env_o2_split_by_gmm/tables/merged_o2_split_by_gmm.csv`
-- `env_stratification_index/stratification_timeseries.tsv`
+- `modules/biochemical_processing/tables/02_oxygen_best_available.tsv`
+- `modules/biochemical_processing/tables/02_oxygen_best_available_density.tsv`
+- `modules/biochemical_processing/tables/02_oxygen_best_available_density_RJM.tsv`
+- `modules/biochemical_processing/tables/stratification_metrics/stratification_summary.tsv`
+- `modules/environmental_pca/tables/eigenvectors_scores.csv`
+- `modules/environmental_pca/tables/matrix_cleaned.csv`
+- `modules/compartment_selection/tables/SELECTED_K.txt`
+- `modules/gmm_compartments/tables/compartments_assignments_smoothed.csv`
+- `modules/oxygen_compartments/tables/o2_compartments_assignments_smoothed.csv`
+- `modules/hybrid_compartments/tables/compartments_assignments_hybrid.csv`
+- `modules/oxygen_gmm_subcompartments/tables/merged_o2_split_by_gmm.csv`
+- `modules/stratification/tables/stratification_timeseries.tsv`
+
+Equivalent historical paths are available below `biochem_pipeline/` as
+compatibility links. Summary products include
+`summary/tables/basin_run_overview.tsv`, `basin_key_outputs.tsv`,
+`basin_module_inventory.tsv`, module/checksum manifests, and the HTML report.
 
 ## Lineage
 

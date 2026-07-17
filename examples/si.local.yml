@@ -1,16 +1,16 @@
 paths:
-  output_dir: /cephfs/rjm_work/basin_output
-  work_dir: /cephfs/rjm_work/si_asv/nf_work_basin
-  conda_cache_dir: /cephfs/rjm_work/si_asv/conda_cache
+  output_dir: /home/ryan/data/biochem/basin_output2
+  runtime_dir: /home/ryan/data/biochem/basin_output2/.basin
+  keep_runtime_dir: true
 
 resources:
-  threads: 12
+  threads: 25
 
 biochem:
   enabled: true
-  table_a: /cephfs/rjm_work/si_asv/ref_db/SI_JA_Compiled_Geochem_Dec_09_Outlier_RM.csv
-  table_b: /cephfs/rjm_work/si_asv/ref_db/SI_JA_Compiled_CTD_Data_Dec_18_2025_Outlier_RM.csv
-  output_root: /cephfs/rjm_work/basin_output/biochem_pipeline
+  table_a: /home/ryan/data/biochem/refs/SI_JA_Compiled_Geochem_Dec_09_Outlier_RM.csv
+  table_b: /home/ryan/data/biochem/refs/SI_JA_Compiled_CTD_Data_Dec_18_2025_Outlier_RM.csv
+  output_root: biochem_pipeline
   cleaned_density_filename: 02_oxygen_best_available_density_RJM.tsv
   clean_keep_cols:
     - cruise_year_month_depth
@@ -48,3 +48,6 @@ biochem:
   feature_cols: Oxygen,Nitrate,Nitrite,Nitrous Oxide,Ammonium,Hydrogen Sulfide,Methane,Phosphate,Silicate,Temperature,Salinity,Density,Fe,Dimethyl Sulfide
   gmm_k: auto
   eof_pcs: 1,2,4
+
+master_summary:
+  enabled: true
