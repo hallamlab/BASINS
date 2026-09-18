@@ -1,0 +1,16 @@
+name: basin-cobrapy-simulation
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - cobra
+  - swiglpk
+  - glpk
+  - python-libsbml
+  - pandas
+  - numpy
+  - scipy
+  - matplotlib-base
+  - pyyaml
+  - pytest

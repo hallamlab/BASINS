@@ -1,4 +1,4 @@
-# File: BASIN/processes/split_o2_by_gmm/env_split_o2_by_gmm.py
+# File: BASINS/processes/split_o2_by_gmm/env_split_o2_by_gmm.py
 #
 # What this does
 # --------------
@@ -49,6 +49,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
 
@@ -57,6 +59,13 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch, Rectangle
+from scipy.ndimage import gaussian_filter
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_style import install_publication_style
+
+install_publication_style()
 
 from sklearn.metrics import silhouette_score
 from sklearn.metrics import pairwise_distances
@@ -153,6 +162,16 @@ class Config:
     point_size: float
     alpha: float
 
+    # time-depth curtain (display only; assignments are not changed)
+    curtain_hide_other: bool
+    curtain_time_subdivisions_per_month: int
+    curtain_time_sigma_months: float
+    curtain_depth_step_m: float
+    curtain_maximum_depth_m: float
+    curtain_contour_visual_depth_sigma_m: float
+    curtain_renewal_events: Optional[str]
+    curtain_renewal_date_col: str
+
 
 def parse_args() -> Config:
     ap = argparse.ArgumentParser(
@@ -221,12 +240,29 @@ def parse_args() -> Config:
     ap.add_argument("--plots", action="store_true", help="Write summary plots per O2 compartment.")
     ap.add_argument(
         "--plot-formats",
-        default="png",
-        help="Comma-separated list: png,pdf,svg (default png).",
+        default="png,pdf,svg",
+        help="Comma-separated list: png,pdf,svg (default: all three).",
     )
     ap.add_argument("--png-dpi", type=int, default=300)
     ap.add_argument("--point-size", type=float, default=18.0)
     ap.add_argument("--alpha", type=float, default=0.65)
+    ap.add_argument(
+        "--curtain-hide-other", action="store_true",
+        help="Exclude '<oxygen>__other' states from the curtain support surface and legend.",
+    )
+    ap.add_argument("--curtain-time-subdivisions-per-month", type=int, default=4)
+    ap.add_argument("--curtain-time-sigma-months", type=float, default=0.75)
+    ap.add_argument("--curtain-depth-step-m", type=float, default=1.0)
+    ap.add_argument("--curtain-maximum-depth-m", type=float, default=210.0)
+    ap.add_argument("--curtain-contour-visual-depth-sigma-m", type=float, default=5.0)
+    ap.add_argument(
+        "--curtain-renewal-events", default=None,
+        help=(
+            "Optional nitrate-qualified renewal-event table. Only event-onset "
+            "dates are drawn as vertical dashed lines on the curtain."
+        ),
+    )
+    ap.add_argument("--curtain-renewal-date-col", default="start_date")
 
     ns = ap.parse_args()
     key_cols = [c.strip() for c in ns.key_cols.split(",") if c.strip()]
@@ -277,6 +313,16 @@ def parse_args() -> Config:
         png_dpi=int(ns.png_dpi),
         point_size=float(ns.point_size),
         alpha=float(ns.alpha),
+        curtain_hide_other=bool(ns.curtain_hide_other),
+        curtain_time_subdivisions_per_month=max(1, int(ns.curtain_time_subdivisions_per_month)),
+        curtain_time_sigma_months=max(0.0, float(ns.curtain_time_sigma_months)),
+        curtain_depth_step_m=max(0.1, float(ns.curtain_depth_step_m)),
+        curtain_maximum_depth_m=max(0.1, float(ns.curtain_maximum_depth_m)),
+        curtain_contour_visual_depth_sigma_m=max(
+            0.0, float(ns.curtain_contour_visual_depth_sigma_m)
+        ),
+        curtain_renewal_events=ns.curtain_renewal_events,
+        curtain_renewal_date_col=str(ns.curtain_renewal_date_col),
     )
 
 
@@ -911,6 +957,519 @@ def _savefig_all(fig: plt.Figure, outbase: str, cfg: Config) -> None:
             fig.savefig(path, dpi=cfg.png_dpi, bbox_inches="tight")
         else:
             fig.savefig(path, bbox_inches="tight")
+
+
+def _hybrid_display_label(label: object, cfg: Config) -> str:
+    raw = str(label)
+    if cfg.sub_label_sep not in raw:
+        return raw
+    oxygen, suffix = raw.split(cfg.sub_label_sep, 1)
+    if suffix.startswith(cfg.prefix_gmm):
+        return f"{oxygen}-GMM{suffix[len(cfg.prefix_gmm):]}"
+    return f"{oxygen}-{suffix}"
+
+
+def _hybrid_label_sort_key(label: object, cfg: Config) -> Tuple[int, int, str]:
+    raw = str(label)
+    oxygen = raw.split(cfg.sub_label_sep, 1)[0]
+    oxygen_order = {"oxic": 0, "dysoxic": 1, "suboxic": 2, "anoxic": 3}
+    gmm_index = _parse_gmm_index_from_label(raw, cfg)
+    return (oxygen_order.get(oxygen, 99), 999 if gmm_index is None else gmm_index, raw)
+
+
+def _draw_categorical_contours(
+    ax: plt.Axes,
+    x: np.ndarray,
+    depth: np.ndarray,
+    codes: np.ndarray,
+    colors: List[str],
+) -> None:
+    """Render each categorical region separately without ordinal interpolation."""
+    for code, color in enumerate(colors):
+        mask = (codes == code).astype(float).T
+        if not mask.any():
+            continue
+        ax.contourf(
+            x, depth, mask,
+            levels=[0.5, 1.5], colors=[color],
+            antialiased=True, zorder=1,
+        )
+        if mask.min() < 0.5 < mask.max():
+            ax.contour(
+                x, depth, mask,
+                levels=[0.5], colors=["#4D4D4D"],
+                linewidths=0.25, alpha=0.55, zorder=2,
+            )
+
+
+def build_smoothed_categorical_curtain(
+    profile: pd.DataFrame,
+    cfg: Config,
+    maximum_depth: float,
+) -> Tuple[pd.DataFrame, List[str], np.ndarray, np.ndarray, np.ndarray, np.ndarray, pd.Timestamp, pd.Timestamp]:
+    """Build a display-only categorical surface from observed hybrid labels.
+
+    Each cruise is first represented by midpoint-bounded nearest-depth states.
+    State-specific one-hot support is interpolated between actual cruise dates
+    on a grid containing every calendar month in every represented year, then
+    Gaussian-smoothed along time only. No smoothing is applied across depth.
+    The displayed state is the state with maximum longitudinally smoothed
+    support. Labels ending in ``__other`` can be excluded from support without
+    altering the underlying sample assignments.
+    """
+    source = profile.copy()
+    source["_label"] = source["o2_subcompartment_final"].astype(str)
+    source["_is_other"] = source["_label"].str.endswith(
+        f"{cfg.sub_label_sep}other"
+    ) | source["_label"].str.lower().eq("outlier")
+    eligible = source.loc[~source["_is_other"]].copy() if cfg.curtain_hide_other else source
+    if eligible.empty:
+        raise ValueError("No non-'other' hybrid states were available for curtain smoothing")
+
+    labels = sorted(
+        eligible["_label"].unique(),
+        key=lambda label: _hybrid_label_sort_key(label, cfg),
+    )
+    label_to_code = {label: index for index, label in enumerate(labels)}
+    cruise_dates = source[["cruise_index", "_date"]].drop_duplicates("cruise_index")
+    cruise_dates = cruise_dates.sort_values("cruise_index").set_index("cruise_index")["_date"]
+    cruise_dates = pd.to_datetime(cruise_dates, errors="coerce")
+    if cruise_dates.isna().any():
+        raise ValueError("All cruises require valid dates for calendar-time curtain smoothing")
+    n_cruises = len(cruise_dates)
+    calendar_start = pd.Timestamp(year=int(cruise_dates.dt.year.min()), month=1, day=1)
+    calendar_end = pd.Timestamp(year=int(cruise_dates.dt.year.max()) + 1, month=1, day=1)
+    month_starts = pd.date_range(calendar_start, calendar_end, freq="MS")
+    subdivisions = cfg.curtain_time_subdivisions_per_month
+    fine_dates_list: List[pd.Timestamp] = []
+    for left, right in zip(month_starts[:-1], month_starts[1:]):
+        width = right - left
+        fine_dates_list.extend(
+            left + width * ((index + 0.5) / subdivisions)
+            for index in range(subdivisions)
+        )
+    fine_dates = pd.DatetimeIndex(fine_dates_list)
+    fine_x = (fine_dates - calendar_start).total_seconds().to_numpy() / 86400.0
+    coarse_x = (cruise_dates - calendar_start).dt.total_seconds().to_numpy() / 86400.0
+    depth_centers = np.arange(
+        0.0, maximum_depth + cfg.curtain_depth_step_m * 0.5,
+        cfg.curtain_depth_step_m,
+    )
+    depth_centers[-1] = min(depth_centers[-1], maximum_depth)
+    coarse = np.full((n_cruises, len(depth_centers)), np.nan, dtype=float)
+
+    for cruise_index, frame in eligible.groupby("cruise_index", sort=True):
+        frame = frame.sort_values("_depth").drop_duplicates("_depth", keep="first")
+        depths = frame["_depth"].to_numpy(float)
+        codes = frame["_label"].map(label_to_code).to_numpy(int)
+        if len(depths) == 1:
+            selected = np.zeros(len(depth_centers), dtype=int)
+        else:
+            midpoints = (depths[:-1] + depths[1:]) / 2.0
+            selected = np.searchsorted(midpoints, depth_centers, side="right")
+        coarse[int(cruise_index), :] = codes[selected]
+
+    support = np.zeros((len(labels), len(fine_x), len(depth_centers)), dtype=float)
+    for label_code in range(len(labels)):
+        for depth_index in range(len(depth_centers)):
+            available = np.isfinite(coarse[:, depth_index])
+            if not available.any():
+                continue
+            values = (coarse[available, depth_index] == label_code).astype(float)
+            dated = pd.DataFrame({"x": coarse_x[available], "value": values})
+            dated = dated.groupby("x", as_index=False)["value"].mean().sort_values("x")
+            support[label_code, :, depth_index] = np.interp(
+                fine_x,
+                dated["x"],
+                dated["value"],
+            )
+        support[label_code] = gaussian_filter(
+            support[label_code],
+            sigma=(
+                cfg.curtain_time_sigma_months * subdivisions,
+                0.0,
+            ),
+            mode="nearest",
+        )
+
+    total_support = support.sum(axis=0)
+    display_codes = support.argmax(axis=0)
+    maximum_support = support.max(axis=0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        support_fraction = np.divide(
+            maximum_support,
+            total_support,
+            out=np.zeros_like(maximum_support),
+            where=total_support > 0,
+        )
+    grid = pd.DataFrame({
+        "calendar_date": np.repeat(fine_dates.to_numpy(), len(depth_centers)),
+        "calendar_month": np.repeat(fine_dates.to_period("M").astype(str), len(depth_centers)),
+        "display_time_coordinate_days": np.repeat(fine_x, len(depth_centers)),
+        "depth_m": np.tile(depth_centers, len(fine_x)),
+        "display_state_code": display_codes.ravel(),
+        "o2_subcompartment_display": np.asarray(labels, dtype=object)[display_codes.ravel()],
+        "maximum_smoothed_support_fraction": support_fraction.ravel(),
+    })
+    return grid, labels, fine_x, depth_centers, display_codes, support, calendar_start, calendar_end
+
+
+def enforce_observed_curtain_anchors(
+    render_codes: np.ndarray,
+    fine_x: np.ndarray,
+    depth_centers: np.ndarray,
+    profile: pd.DataFrame,
+    labels: List[str],
+    cfg: Config,
+    calendar_start: pd.Timestamp,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Force the rendered surface to agree with observed cruise-depth states.
+
+    Each observed cruise profile owns the fine-grid columns immediately
+    bracketing its sampling date (and an adjacent column when the date lies on
+    a grid node). Competing anchors are resolved by distance to the sampling
+    date. The entire midpoint-bounded observed depth profile is imposed on
+    those columns after all visual smoothing.
+    """
+    anchored = np.asarray(render_codes, dtype=int).copy()
+    anchor_mask = np.zeros_like(anchored, dtype=bool)
+    anchor_owner = np.full_like(anchored, -1, dtype=int)
+    owner_distance = np.full(len(fine_x), np.inf, dtype=float)
+    label_to_code = {label: index for index, label in enumerate(labels)}
+
+    source = profile.copy()
+    source["_label"] = source["o2_subcompartment_final"].astype(str)
+    source["_is_other"] = source["_label"].str.endswith(
+        f"{cfg.sub_label_sep}other"
+    ) | source["_label"].str.lower().eq("outlier")
+    if cfg.curtain_hide_other:
+        source = source.loc[~source["_is_other"]].copy()
+
+    for cruise_index, frame in source.groupby("cruise_index", sort=True):
+        frame = frame.sort_values("_depth").drop_duplicates("_depth", keep="first")
+        if frame.empty:
+            continue
+        depths = frame["_depth"].to_numpy(float)
+        observed_codes = frame["_label"].map(label_to_code).to_numpy(int)
+        if len(depths) == 1:
+            selected = np.zeros(len(depth_centers), dtype=int)
+        else:
+            selected = np.searchsorted(
+                (depths[:-1] + depths[1:]) / 2.0,
+                depth_centers,
+                side="right",
+            )
+        depth_profile_codes = observed_codes[selected]
+        sample_date = pd.to_datetime(frame["_date"].iloc[0], errors="coerce")
+        if pd.isna(sample_date):
+            continue
+        sample_x = float((sample_date - calendar_start).total_seconds() / 86400.0)
+        insertion = int(np.searchsorted(fine_x, sample_x, side="left"))
+        candidate_columns = {
+            max(0, min(len(fine_x) - 1, insertion - 1)),
+            max(0, min(len(fine_x) - 1, insertion)),
+        }
+        if insertion < len(fine_x) and np.isclose(fine_x[insertion], sample_x):
+            candidate_columns.add(min(len(fine_x) - 1, insertion + 1))
+        for column in sorted(candidate_columns):
+            distance = abs(float(fine_x[column]) - sample_x)
+            if distance > owner_distance[column]:
+                continue
+            anchored[column, :] = depth_profile_codes
+            anchor_mask[column, :] = True
+            anchor_owner[column, :] = int(cruise_index)
+            owner_distance[column] = distance
+    return anchored, anchor_mask, anchor_owner
+
+
+def plot_hybrid_time_depth_curtain(
+    m: pd.DataFrame,
+    depth_col: str,
+    sub_palette: Dict[str, str],
+    plots_dir: str,
+    tables_dir: str,
+    cfg: Config,
+    maximum_depth: float = 210.0,
+) -> pd.DataFrame:
+    """Draw a smoothed categorical time-depth surface with sampled-depth audit points."""
+    required = {cfg.cruise_col, depth_col, "o2_subcompartment_final"}
+    missing = sorted(required.difference(m.columns))
+    if missing:
+        raise ValueError(
+            "Hybrid time-depth curtain is missing required columns: "
+            + ", ".join(missing)
+        )
+    data = m.copy()
+    data["_depth"] = pd.to_numeric(data[depth_col], errors="coerce")
+    if cfg.date_col in data:
+        data["_date"] = pd.to_datetime(data[cfg.date_col], errors="coerce")
+    elif {"Year", "Month", "Day"}.issubset(data.columns):
+        data["_date"] = pd.to_datetime(
+            data[["Year", "Month", "Day"]].rename(
+                columns={"Year": "year", "Month": "month", "Day": "day"}
+            ),
+            errors="coerce",
+        )
+    else:
+        data["_date"] = pd.NaT
+    data = data.loc[
+        data["_depth"].between(0.0, maximum_depth, inclusive="both")
+        & data["o2_subcompartment_final"].notna()
+        & data["_date"].notna()
+    ].copy()
+    if data.empty:
+        raise ValueError("No classified observations were available for the hybrid time-depth curtain")
+
+    cruise_table = data[[cfg.cruise_col, "_date"]].drop_duplicates().copy()
+    cruise_table["_cruise_numeric"] = pd.to_numeric(
+        cruise_table[cfg.cruise_col], errors="coerce"
+    )
+    cruise_table = cruise_table.sort_values(
+        ["_date", "_cruise_numeric", cfg.cruise_col], na_position="last"
+    ).reset_index(drop=True)
+    cruise_table["cruise_index"] = np.arange(len(cruise_table), dtype=int)
+    calendar_start = pd.Timestamp(
+        year=int(cruise_table["_date"].dt.year.min()), month=1, day=1
+    )
+    cruise_table["time_coordinate_days"] = (
+        cruise_table["_date"] - calendar_start
+    ).dt.total_seconds() / 86400.0
+    data = data.merge(
+        cruise_table[[cfg.cruise_col, "_date", "cruise_index", "time_coordinate_days"]],
+        on=[cfg.cruise_col, "_date"], how="inner", validate="many_to_one",
+    )
+
+    confidence = pd.to_numeric(data.get(cfg.max_prob_col), errors="coerce")
+    data["_confidence"] = confidence if confidence is not None else np.nan
+    data = data.sort_values(
+        ["cruise_index", "_depth", "_confidence", "o2_subcompartment_final"],
+        ascending=[True, True, False, True], na_position="last",
+    )
+    # Multiple bottles at the same cruise and anchored depth represent one
+    # curtain cell; the most confident final assignment is used for its fill.
+    profile = data.drop_duplicates(["cruise_index", "_depth"], keep="first")
+
+    cells = []
+    for cruise_index, frame in profile.groupby("cruise_index", sort=True):
+        frame = frame.sort_values("_depth").reset_index(drop=True)
+        depths = frame["_depth"].to_numpy(float)
+        if len(depths) == 1:
+            boundaries = np.array([0.0, maximum_depth], dtype=float)
+        else:
+            boundaries = np.concatenate((
+                [0.0],
+                (depths[:-1] + depths[1:]) / 2.0,
+                [maximum_depth],
+            ))
+        for row_index, row in frame.iterrows():
+            label = str(row["o2_subcompartment_final"])
+            cells.append({
+                "cruise_index": int(cruise_index),
+                cfg.cruise_col: row[cfg.cruise_col],
+                "date": row["_date"],
+                "time_coordinate_days": float(row["time_coordinate_days"]),
+                "measurement_depth_m": float(row["_depth"]),
+                "cell_top_depth_m": float(boundaries[row_index]),
+                "cell_bottom_depth_m": float(boundaries[row_index + 1]),
+                "o2_subcompartment_final": label,
+                "display_label": _hybrid_display_label(label, cfg),
+                "color_hex": sub_palette.get(label, "#BDBDBD"),
+            })
+    cell_table = pd.DataFrame(cells)
+    cell_table["is_other_assignment"] = cell_table[
+        "o2_subcompartment_final"
+    ].astype(str).str.endswith(f"{cfg.sub_label_sep}other")
+    cell_table["included_in_smoothed_display_support"] = (
+        ~cell_table["is_other_assignment"]
+        if cfg.curtain_hide_other
+        else True
+    )
+    grid, observed_labels, fine_x, depth_centers, display_codes, support, calendar_start, calendar_end = (
+        build_smoothed_categorical_curtain(profile, cfg, maximum_depth)
+    )
+    contour_support = np.stack([
+        gaussian_filter(
+            state_support,
+            sigma=(
+                0.0,
+                cfg.curtain_contour_visual_depth_sigma_m / cfg.curtain_depth_step_m,
+            ),
+            mode="nearest",
+        )
+        for state_support in support
+    ])
+    contour_codes = contour_support.argmax(axis=0)
+    contour_codes, anchor_mask, anchor_owner = enforce_observed_curtain_anchors(
+        contour_codes,
+        fine_x,
+        depth_centers,
+        profile,
+        observed_labels,
+        cfg,
+        calendar_start,
+    )
+    grid["render_state_code"] = contour_codes.ravel()
+    grid["o2_subcompartment_rendered"] = np.asarray(
+        observed_labels, dtype=object
+    )[contour_codes.ravel()]
+    grid["observed_anchor_enforced"] = anchor_mask.ravel()
+    grid["anchor_cruise_index"] = np.where(
+        anchor_mask, anchor_owner, np.nan
+    ).ravel()
+
+    rendered_at_measurement = []
+    for row in cell_table.itertuples(index=False):
+        time_index = int(np.argmin(np.abs(fine_x - float(row.time_coordinate_days))))
+        depth_index = int(np.argmin(np.abs(depth_centers - float(row.measurement_depth_m))))
+        rendered_at_measurement.append(observed_labels[int(contour_codes[time_index, depth_index])])
+    cell_table["rendered_state_at_measurement"] = rendered_at_measurement
+    cell_table["rendered_state_matches_observation"] = (
+        cell_table["rendered_state_at_measurement"].astype(str)
+        == cell_table["o2_subcompartment_final"].astype(str)
+    )
+    included_mismatch = (
+        cell_table["included_in_smoothed_display_support"].astype(bool)
+        & ~cell_table["rendered_state_matches_observation"]
+    )
+    if included_mismatch.any():
+        raise RuntimeError(
+            "Observed-anchor enforcement failed for "
+            f"{int(included_mismatch.sum())} curtain cells"
+        )
+    cell_table.to_csv(
+        os.path.join(tables_dir, "hybrid_compartment_time_depth_curtain_cells.csv"),
+        index=False,
+    )
+    grid.to_csv(
+        os.path.join(tables_dir, "hybrid_compartment_time_depth_curtain_grid.csv"),
+        index=False,
+    )
+
+    renewal_rows = pd.DataFrame(columns=["renewal_date", "time_coordinate_days"])
+    renewal_path = getattr(cfg, "curtain_renewal_events", None)
+    renewal_date_col = getattr(cfg, "curtain_renewal_date_col", "start_date")
+    if renewal_path:
+        renewal_sep = "\t" if str(renewal_path).lower().endswith((".tsv", ".txt")) else ","
+        renewal_source = pd.read_csv(renewal_path, sep=renewal_sep)
+        if renewal_date_col not in renewal_source.columns:
+            raise ValueError(
+                f"Renewal-event table lacks configured onset column {renewal_date_col!r}"
+            )
+        renewal_dates = pd.to_datetime(
+            renewal_source[renewal_date_col], errors="coerce"
+        ).dropna().drop_duplicates().sort_values()
+        renewal_rows = pd.DataFrame({"renewal_date": renewal_dates})
+        renewal_rows["time_coordinate_days"] = (
+            renewal_rows["renewal_date"] - calendar_start
+        ).dt.total_seconds() / 86400.0
+        renewal_rows = renewal_rows.loc[
+            renewal_rows["time_coordinate_days"].between(
+                0.0, float((calendar_end - calendar_start).days), inclusive="both"
+            )
+        ].reset_index(drop=True)
+    renewal_rows.to_csv(
+        os.path.join(tables_dir, "hybrid_compartment_time_depth_curtain_renewals.csv"),
+        index=False,
+    )
+    pd.DataFrame([{
+        "hide_other": cfg.curtain_hide_other,
+        "calendar_start": calendar_start,
+        "calendar_end_exclusive": calendar_end,
+        "calendar_months_n": (calendar_end.year - calendar_start.year) * 12,
+        "time_subdivisions_per_calendar_month": cfg.curtain_time_subdivisions_per_month,
+        "time_gaussian_sigma_months": cfg.curtain_time_sigma_months,
+        "depth_grid_step_m": cfg.curtain_depth_step_m,
+        "maximum_display_depth_m": maximum_depth,
+        "depth_gaussian_sigma_m": 0.0,
+        "smoothing_axes": "calendar_time_only",
+        "rendering": "categorical_filled_contours",
+        "contour_visual_depth_sigma_m": cfg.curtain_contour_visual_depth_sigma_m,
+        "contour_visual_smoothing_changes_assignments": False,
+        "observed_anchor_constraint": True,
+        "anchor_grid_cells_n": int(anchor_mask.sum()),
+        "included_observation_mismatches_n": int(included_mismatch.sum()),
+        "source_samples_n": len(profile),
+        "other_source_samples_n": int(
+            profile["o2_subcompartment_final"].astype(str).str.endswith(
+                f"{cfg.sub_label_sep}other"
+            ).sum()
+        ),
+        "display_states_n": len(observed_labels),
+        "renewal_onsets_plotted_n": len(renewal_rows),
+        "renewal_onset_source": renewal_path or "none",
+        "renewal_onset_date_column": renewal_date_col,
+    }]).to_csv(
+        os.path.join(tables_dir, "hybrid_compartment_time_depth_curtain_smoothing.csv"),
+        index=False,
+    )
+
+    fig, ax = plt.subplots(figsize=(18.0, 7.5))
+    plot_x = np.concatenate((
+        [0.0], fine_x, [float((calendar_end - calendar_start).days)]
+    ))
+    plot_codes = np.concatenate(
+        (contour_codes[:1], contour_codes, contour_codes[-1:]), axis=0
+    )
+    _draw_categorical_contours(
+        ax,
+        plot_x,
+        depth_centers,
+        plot_codes,
+        [sub_palette.get(label, "#BDBDBD") for label in observed_labels],
+    )
+    ax.scatter(
+        profile["time_coordinate_days"], profile["_depth"],
+        s=7.5, facecolor="black", edgecolor="none", alpha=1.0, zorder=4,
+    )
+    for renewal_x in renewal_rows["time_coordinate_days"]:
+        ax.axvline(
+            renewal_x, color="black", linestyle="--", linewidth=0.9,
+            alpha=0.9, zorder=3,
+        )
+    year_starts = pd.date_range(calendar_start, calendar_end, freq="YS", inclusive="left")
+    year_x = (year_starts - calendar_start).total_seconds().to_numpy() / 86400.0
+    month_starts = pd.date_range(calendar_start, calendar_end, freq="MS", inclusive="left")
+    month_x = (month_starts - calendar_start).total_seconds().to_numpy() / 86400.0
+    ax.set_xticks(year_x)
+    ax.set_xticklabels([str(date.year) for date in year_starts], ha="left", fontsize=8)
+    ax.set_xticks(month_x, minor=True)
+    ax.tick_params(axis="x", which="minor", length=2.5)
+    ax.set_xlim(0.0, float((calendar_end - calendar_start).days))
+    ax.set_ylim(maximum_depth, 0.0)
+    ax.set_yticks(np.arange(0, maximum_depth + 1, 25))
+    ax.set_ylabel("Depth (m)")
+    ax.set_xlabel("Calendar time (monthly intervals)")
+    ax.set_title(r"Hybrid O$_2$-GMM compartments through time and depth")
+
+    handles = [
+        Patch(
+            facecolor=sub_palette.get(label, "#BDBDBD"), edgecolor="none",
+            label=_hybrid_display_label(label, cfg),
+        )
+        for label in observed_labels
+    ]
+    handles.append(Line2D(
+        [], [], marker="o", linestyle="", markersize=3.5,
+        markerfacecolor="black", markeredgecolor="none", label="Sampled depth",
+    ))
+    if not renewal_rows.empty:
+        handles.append(Line2D(
+            [], [], color="black", linestyle="--", linewidth=0.9,
+            label="Predicted renewal onset",
+        ))
+    ax.legend(
+        handles=handles, title=r"Hybrid O$_2$-GMM compartment",
+        loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False,
+        fontsize=8, title_fontsize=9,
+    )
+    fig.subplots_adjust(left=0.07, right=0.82, bottom=0.20, top=0.91)
+    _savefig_all(
+        fig,
+        os.path.join(plots_dir, "hybrid_compartment_time_depth_curtain"),
+        cfg,
+    )
+    plt.close(fig)
+    return cell_table
 
 
 def _smooth_profile_by_depth_bins(
@@ -1776,6 +2335,21 @@ def main() -> None:
         pal_df.to_csv(os.path.join(tables_dir, "subcompartment_palette.csv"), index=False)  # audit/stability
         sub_palette = palette_df_to_dict(pal_df)
 
+        depth_for_curtain = (
+            cfg.depth_anchored_col
+            if cfg.depth_anchored_col in m.columns
+            else cfg.depth_col
+        )
+        plot_hybrid_time_depth_curtain(
+            m=m,
+            depth_col=depth_for_curtain,
+            sub_palette=sub_palette,
+            plots_dir=plots_dir,
+            tables_dir=tables_dir,
+            cfg=cfg,
+            maximum_depth=cfg.curtain_maximum_depth_m,
+        )
+
         # Choose PC axes
         pc_x = cfg.pc_cols[0] if len(cfg.pc_cols) >= 1 else None
         pc_y = cfg.pc_cols[1] if len(cfg.pc_cols) >= 2 else None
@@ -1892,5 +2466,5 @@ python processes/split_o2_by_gmm/env_split_o2_by_gmm.py \
   --reassign-radius-quantile 0.95 \
   --reassign-min-core-n 20 \
   --plots \
-  --plot-formats "png,svg"
+  --plot-formats "png,pdf,svg"
 """

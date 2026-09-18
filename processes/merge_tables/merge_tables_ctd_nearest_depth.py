@@ -57,10 +57,11 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--max-depth-diff",
         type=float,
-        default=None,
+        default=10.0,
         help=(
-            "Optional maximum allowed absolute depth difference. "
-            "If set, matches with |B.Depth - A.Depth| > this are treated as missing CTD for that row."
+            "Maximum allowed absolute depth difference in metres (default: 10). "
+            "Matches with |B.Depth - A.Depth| above this limit are treated as "
+            "missing CTD for that row."
         ),
     )
 
@@ -240,6 +241,8 @@ def add_best_available_oxygen(merged: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> int:
     args = parse_args()
+    if args.max_depth_diff < 0:
+        raise ValueError("--max-depth-diff must be nonnegative")
     ensure_outdir(args.outdir)
 
     sep_a = guess_sep(args.table_a, args.sep_a)

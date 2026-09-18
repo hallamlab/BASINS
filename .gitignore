@@ -55,3 +55,16 @@ reports/
 *.swp
 *.swo
 *~
+
+# Local manuscript writing, derived supplements, and manuscript-only utilities
+/docs/BASIN_METHODS.md
+/docs/BASIN_RESULTS.md
+/docs/BASIN_manuscript_supplements.zip
+/docs/manuscript_*
+/docs/lineage_assessment/
+/scripts/audit_manuscript_inputs.py
+/scripts/build_manuscript_supplements.py
+/scripts/build_lineage_assessment.py
+/scripts/build_showcase_physicochemistry.py
+/update_manual_renewal_package.py
+/examples/si.sag_xpg_genomes.tsv

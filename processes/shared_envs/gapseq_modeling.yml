@@ -1,0 +1,15 @@
+name: basin-gapseq-modeling
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - gapseq=2.1.0
+  - diamond>=2.1.9
+  - blast
+  - hmmer
+  - pyrodigal
+  - libsbml>=5.18
+  - glpk
+  # MMseqs2 is intentionally not pinned here: its current aria2/libxml2
+  # dependency conflicts with gapseq 2.1.0's r-cobrar/libsbml stack.
+  # Supply genome_modeling.mmseqs2_bin when aligner: mmseqs2 is requested.

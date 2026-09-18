@@ -144,6 +144,19 @@ tables/
     ARI_o2_vs_gmm, NMI_o2_vs_gmm,
     silhouette_PCspace_o2, silhouette_PCspace_gmm
 
+- grouping_redundancy_pairwise.csv
+  Matched-row normalized mutual information and bias-corrected Cramér's V
+  among anchored depth, season, legacy O2, GMM, and (when supplied) hybrid labels.
+
+- heldout_sparse_feature_cv_folds.csv
+- heldout_sparse_feature_cv_summary.csv
+- heldout_sparse_feature_paired_comparisons.csv
+- heldout_sparse_feature_cohort_audit.csv
+  Leave-one-cruise-out prediction of PCA-excluded chemistry from a depth+season
+  baseline and models augmented by legacy O2, GMM, or hybrid labels. Summary
+  metrics include pooled CV R2 and RMSE; paired fold differences include
+  bootstrap confidence intervals and sign-flip permutation p-values.
+
 - quality_metrics_pcspace.csv
   Contains (PC space, scaled, complete-PC rows only):
     silhouette_o2, silhouette_gmm,
@@ -199,7 +212,8 @@ UMAP skip markers
 Optional PCA-stage interpretation outputs (#4; only if pca tables are provided and found)
 ---------------------------------------------------------------------------------------
 These are enabled when either:
-  - --pca-tables-dir points to a directory containing pca_loadings.csv and/or pc_loading_concentration.csv, OR
+  - --pca-tables-dir points to a directory containing pca_loadings.csv,
+    sparse_feature_pc_spearman.csv, and/or pc_loading_concentration.csv, OR
   - --pca-loadings / --pc-loading-concentration are provided explicitly.
 
 tables/
@@ -213,6 +227,15 @@ tables/
 plots/
 - C1_top_loadings_PCk.{pdf,svg,png}
   Horizontal bar plots of signed loadings for the top-N features for each PC used.
+
+- grouping_redundancy_heatmap.{pdf,svg,png}
+- heldout_sparse_feature_cv_performance.{pdf,svg,png}
+
+- D3_pc1_vs_pc2_biplot_gmm.{pdf,svg,png}
+- D4_pc1_vs_pc2_biplot_o2.{pdf,svg,png}
+- D5_pc1_vs_pc2_biplot_hybrid.{pdf,svg,png}
+  Compartment-colored PC1-PC2 biplots with solid core-feature loading vectors
+  and dashed sparse-feature Spearman-correlation vectors.
 
 Plots written (always, for complete-enough features)
 ----------------------------------------------------
@@ -248,15 +271,31 @@ Notes / invariants (things this script does NOT do)
 from __future__ import annotations
 
 import argparse
+import colorsys
 import os
 import json
+import re
+import sys
+from pathlib import Path
 from dataclasses import dataclass
+from itertools import combinations
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgb
 from matplotlib.lines import Line2D
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_style import (
+    calculate_biplot_vector_scale,
+    draw_biplot_vector,
+    install_publication_style,
+    layout_biplot_labels,
+)
+
+install_publication_style()
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
@@ -286,6 +325,7 @@ O2_COMPARTMENT_PALETTE = {
     "suboxic": "lightblue",
     "anoxic": "purple",
 }
+O2_COMPARTMENT_ORDER = ("oxic", "dysoxic", "suboxic", "anoxic")
 
 BIOCHEM_COLOR_MAP = {
     "Oxygen": "black",
@@ -297,6 +337,7 @@ BIOCHEM_COLOR_MAP = {
     "Hydrogen Sulfide": "#D95F02",
     "Dimethyl Sulfide": "#E6AB02",
     "Methane": "violet",
+    "Iron": "red",
     "Fe": "red",
     "Fluorescence": "limegreen",
     "Temperature": "gray",
@@ -305,6 +346,38 @@ BIOCHEM_COLOR_MAP = {
     "Silicate": "peru",
     "PAR": "tan",
 }
+
+# Shared with the environmental PCA biplot so the PCA, GMM, O2, and hybrid
+# panels have identical canvas geometry.
+BIPLOT_FIGSIZE = (10.5, 7.2)
+BIPLOT_BOX_ASPECT = 1.0
+
+
+def ordered_compartment_classes(values: pd.Series, label_col: str) -> List[str]:
+    """Return deterministic legend order, with oxygen decreasing top to bottom."""
+    present = set(values.astype("object").fillna("NA").astype(str).unique())
+    if label_col == "o2_compartment":
+        ordered = [label for label in O2_COMPARTMENT_ORDER if label in present]
+        return ordered + sorted(present.difference(ordered), key=str)
+    if label_col == "hybrid_compartment":
+        def hybrid_key(label: str) -> tuple:
+            match = re.fullmatch(r"hyb_C(0|1|2|3)_G(0|[1-9][0-9]*)", label)
+            return (
+                (int(match.group(1)), int(match.group(2)))
+                if match
+                else (99, label)
+            )
+
+        return sorted(present, key=hybrid_key)
+    return sorted(
+        present,
+        key=lambda label: (
+            0,
+            int(float(label)),
+        )
+        if re.fullmatch(r"-?[0-9]+(?:\.0+)?", label)
+        else (1, label),
+    )
 
 
 def depth_cmap():
@@ -323,11 +396,13 @@ class Config:
     eigenvectors: str
     assignments: str
     o2_assignments: Optional[str]
+    hybrid_assignments: Optional[str]
     outdir: str
     sep_matrix: str
     sep_eig: str
     sep_assign: str
     sep_o2_assign: str
+    sep_hybrid_assign: str
 
     # keying
     id_col: str
@@ -343,6 +418,7 @@ class Config:
     oxygen_col: str
     cruise_col: str
     o2_compartment_col: str
+    hybrid_compartment_col: str
 
     # O2 thresholds uM
     o2_oxic_gt: float
@@ -380,6 +456,14 @@ class Config:
     # #4 loadings plots config
     pc_loading_top_n: int
 
+    # Independent grouping benchmarks
+    benchmark_sparse_features: List[str]
+    benchmark_min_group_n: int
+    benchmark_min_cruises: int
+    benchmark_bootstrap: int
+    benchmark_permutations: int
+    benchmark_random_state: int
+
 
 def parse_args() -> Config:
     ap = argparse.ArgumentParser(description="Compare GMM compartments vs O2 compartments; depth profiles + UMAP + stats.")
@@ -392,11 +476,20 @@ def parse_args() -> Config:
         default=None,
         help="Optional path to o2_compartments_assignments_{base|smoothed}.csv. If provided, uses these O2 labels instead of thresholding Oxygen.",
     )
+    ap.add_argument(
+        "--hybrid-assignments",
+        default=None,
+        help=(
+            "Optional path to compartments_assignments_hybrid.csv. When supplied, "
+            "hybrid labels are included in redundancy and held-out-chemistry benchmarks."
+        ),
+    )
     ap.add_argument("--outdir", required=True, help="Output directory")
     ap.add_argument("--sep-matrix", default=",")
     ap.add_argument("--sep-eig", default=",")
     ap.add_argument("--sep-assign", default=",")
     ap.add_argument("--sep-o2-assign", default=",")
+    ap.add_argument("--sep-hybrid-assign", default=",")
 
     ap.add_argument("--id-col", default="cruise_year_month_depth", help="Legacy ID column (only used if --key-mode id).")
 
@@ -423,6 +516,11 @@ def parse_args() -> Config:
         "--o2-compartment-col",
         default="compartment_name",
         help="Column in --o2-assignments containing O2 compartment labels (default compartment_name).",
+    )
+    ap.add_argument(
+        "--hybrid-compartment-col",
+        default="compartment_name",
+        help="Column in --hybrid-assignments containing hybrid hard labels.",
     )
 
     ap.add_argument("--o2-oxic-gt", type=float, default=90.0)
@@ -459,8 +557,40 @@ def parse_args() -> Config:
     ap.add_argument("--pca-loadings", default=None, help="Optional: explicit path to pca_loadings.csv (overrides --pca-tables-dir).")
     ap.add_argument("--pc-loading-concentration", default=None, help="Optional: explicit path to pc_loading_concentration.csv (overrides --pca-tables-dir).")
     ap.add_argument("--pc-loading-top-n", type=int, default=12, help="Top N features per PC for loading plots (default 12).")
+    ap.add_argument(
+        "--benchmark-sparse-features",
+        default="Nitrous Oxide,Hydrogen Sulfide,Methane,Iron,Dimethyl Sulfide",
+        help="Comma-separated PCA-excluded features used for independent prediction benchmarks.",
+    )
+    ap.add_argument(
+        "--benchmark-min-group-n",
+        type=int,
+        default=5,
+        help="Collapse grouping levels represented by fewer than this many matched observations into 'rare'.",
+    )
+    ap.add_argument(
+        "--benchmark-min-cruises",
+        type=int,
+        default=10,
+        help="Minimum matched cruises required to run a held-out sparse-feature benchmark.",
+    )
+    ap.add_argument(
+        "--benchmark-bootstrap",
+        type=int,
+        default=5000,
+        help="Bootstrap replicates for paired cross-validation performance differences.",
+    )
+    ap.add_argument(
+        "--benchmark-permutations",
+        type=int,
+        default=10000,
+        help="Sign-flip permutations for paired cross-validation performance differences.",
+    )
+    ap.add_argument("--benchmark-random-state", type=int, default=42)
 
     ns = ap.parse_args()
+    if ns.benchmark_min_cruises < 2:
+        ap.error("--benchmark-min-cruises must be at least 2.")
     key_cols = [c.strip() for c in ns.key_cols.split(",") if c.strip()]
 
     # Resolve optional PCA paths
@@ -484,11 +614,13 @@ def parse_args() -> Config:
         eigenvectors=ns.eigenvectors,
         assignments=ns.assignments,
         o2_assignments=ns.o2_assignments,
+        hybrid_assignments=ns.hybrid_assignments,
         outdir=ns.outdir,
         sep_matrix=ns.sep_matrix,
         sep_eig=ns.sep_eig,
         sep_assign=ns.sep_assign,
         sep_o2_assign=ns.sep_o2_assign,
+        sep_hybrid_assign=ns.sep_hybrid_assign,
 
         id_col=ns.id_col,
         key_mode=ns.key_mode,
@@ -502,6 +634,7 @@ def parse_args() -> Config:
         oxygen_col=ns.oxygen_col,
         cruise_col=ns.cruise_col,
         o2_compartment_col=ns.o2_compartment_col,
+        hybrid_compartment_col=ns.hybrid_compartment_col,
 
         o2_oxic_gt=ns.o2_oxic_gt,
         o2_dysoxic_hi=ns.o2_dysoxic_hi,
@@ -531,6 +664,16 @@ def parse_args() -> Config:
         pc_loading_concentration_path=pc_loading_concentration_path,
 
         pc_loading_top_n=ns.pc_loading_top_n,
+        benchmark_sparse_features=[
+            feature.strip()
+            for feature in ns.benchmark_sparse_features.split(",")
+            if feature.strip()
+        ],
+        benchmark_min_group_n=ns.benchmark_min_group_n,
+        benchmark_min_cruises=ns.benchmark_min_cruises,
+        benchmark_bootstrap=ns.benchmark_bootstrap,
+        benchmark_permutations=ns.benchmark_permutations,
+        benchmark_random_state=ns.benchmark_random_state,
     )
 
 
@@ -922,6 +1065,52 @@ def build_categorical_grayscale_palette(labels: pd.Series) -> Dict[str, Tuple[fl
     return {str(u): (g, g, g) for u, g in zip(uniq, grays)}
 
 
+def hybrid_o2_gmm_label(label: object) -> str:
+    """Convert hyb_C{oxygen}_G{gmm} to a reader-facing O2-GMM label."""
+    text = str(label)
+    match = re.fullmatch(r"hyb_C(0|1|2|3)_G(0|[1-9][0-9]*)", text)
+    if not match:
+        return text
+    oxygen_names = ("oxic", "dysoxic", "suboxic", "anoxic")
+    return f"{oxygen_names[int(match.group(1))]}-GMM{int(match.group(2))}"
+
+
+def build_hybrid_parent_palette(labels: pd.Series) -> Dict[str, object]:
+    """
+    Encode hybrid parentage directly: hue identifies the O2 class and
+    lightness identifies the GMM component.
+    """
+    parsed = []
+    for value in labels.astype("object").dropna().astype(str).unique():
+        match = re.fullmatch(r"hyb_C(0|1|2|3)_G(0|[1-9][0-9]*)", value)
+        if match:
+            parsed.append((value, int(match.group(1)), int(match.group(2))))
+
+    if not parsed:
+        return build_categorical_grayscale_palette(labels)
+
+    gmm_values = sorted({gmm for _, _, gmm in parsed})
+    if len(gmm_values) == 1:
+        lightness = {gmm_values[0]: 0.52}
+    else:
+        lightness = dict(
+            zip(gmm_values, np.linspace(0.30, 0.76, len(gmm_values)))
+        )
+
+    oxygen_names = ("oxic", "dysoxic", "suboxic", "anoxic")
+    palette: Dict[str, object] = {}
+    for raw, oxygen_idx, gmm_idx in parsed:
+        hue, _, saturation = colorsys.rgb_to_hls(
+            *to_rgb(O2_COMPARTMENT_PALETTE[oxygen_names[oxygen_idx]])
+        )
+        palette[raw] = colorsys.hls_to_rgb(
+            hue,
+            float(lightness[gmm_idx]),
+            max(0.58, saturation),
+        )
+    return palette
+
+
 def plot_pc1_vs_pc2_categorical(
     df: pd.DataFrame,
     pc1: str,
@@ -996,6 +1185,163 @@ def plot_pc1_vs_pc2_categorical(
     save_all_formats(fig, out_base, cfg)
 
 
+def plot_compartment_biplot(
+    df: pd.DataFrame,
+    label_col: str,
+    palette: Dict[str, object],
+    loadings_df: pd.DataFrame,
+    sparse_corr_df: Optional[pd.DataFrame],
+    title: str,
+    out_base: str,
+    cfg: Config,
+    *,
+    top_core: int = 12,
+    top_sparse: int = 12,
+    point_size: float = 30.0,
+    point_alpha: float = 1.0,
+    point_edgecolor: str = "0.55",
+    point_linewidth: float = 0.45,
+    display_labels: Optional[Dict[str, str]] = None,
+) -> None:
+    """Plot compartment assignments with PCA loading/correlation vectors."""
+    required = {"PC1", "PC2", label_col}
+    if not required.issubset(df.columns) or loadings_df is None or loadings_df.empty:
+        return
+
+    points = df[["PC1", "PC2", label_col]].copy()
+    points["PC1"] = pd.to_numeric(points["PC1"], errors="coerce")
+    points["PC2"] = pd.to_numeric(points["PC2"], errors="coerce")
+    points = points.dropna(subset=["PC1", "PC2"])
+    if points.shape[0] < 3:
+        return
+
+    loads = loadings_df.copy()
+    if "Unnamed: 0" in loads.columns:
+        loads = loads.rename(columns={"Unnamed: 0": "feature"})
+    if "feature" not in loads.columns and len(loads.columns):
+        loads = loads.rename(columns={loads.columns[0]: "feature"})
+    if not {"feature", "PC1", "PC2"}.issubset(loads.columns):
+        return
+    for pc in ("PC1", "PC2"):
+        loads[pc] = pd.to_numeric(loads[pc], errors="coerce")
+    loads = loads.dropna(subset=["PC1", "PC2"])
+    loads["vector_norm"] = np.hypot(loads["PC1"], loads["PC2"])
+    loads = loads.nlargest(max(0, int(top_core)), "vector_norm")
+
+    sparse = pd.DataFrame(columns=["feature", "PC1", "PC2", "vector_norm"])
+    if sparse_corr_df is not None and not sparse_corr_df.empty:
+        required_sparse = {"feature", "PC", "spearman_r"}
+        if required_sparse.issubset(sparse_corr_df.columns):
+            sparse = (
+                sparse_corr_df[sparse_corr_df["PC"].isin(["PC1", "PC2"])]
+                .pivot_table(index="feature", columns="PC", values="spearman_r", aggfunc="first")
+                .reset_index()
+            )
+            if {"PC1", "PC2"}.issubset(sparse.columns):
+                sparse["PC1"] = pd.to_numeric(sparse["PC1"], errors="coerce")
+                sparse["PC2"] = pd.to_numeric(sparse["PC2"], errors="coerce")
+                sparse = sparse.dropna(subset=["PC1", "PC2"])
+                sparse["vector_norm"] = np.hypot(sparse["PC1"], sparse["PC2"])
+                sparse = sparse.nlargest(max(0, int(top_sparse)), "vector_norm")
+            else:
+                sparse = pd.DataFrame(columns=["feature", "PC1", "PC2", "vector_norm"])
+
+    vectors = pd.concat(
+        [
+            loads[["feature", "PC1", "PC2"]].assign(vector_type="Core loading"),
+            sparse[["feature", "PC1", "PC2"]].assign(vector_type="Sparse correlation"),
+        ],
+        ignore_index=True,
+    )
+
+    fig, ax = plt.subplots(figsize=BIPLOT_FIGSIZE)
+    labels = points[label_col].astype("object").fillna("NA").astype(str)
+    classes = ordered_compartment_classes(labels, label_col)
+    for cls in classes:
+        mask = labels.eq(cls).to_numpy()
+        ax.scatter(
+            points.loc[mask, "PC1"],
+            points.loc[mask, "PC2"],
+            s=point_size,
+            alpha=point_alpha,
+            color=palette.get(str(cls), "0.55"),
+            edgecolors=point_edgecolor,
+            linewidths=point_linewidth,
+            label=(display_labels or {}).get(str(cls), str(cls)),
+            zorder=1,
+        )
+
+    ax.axhline(0, linewidth=0.8, color="0.82", zorder=0)
+    ax.axvline(0, linewidth=0.8, color="0.82", zorder=0)
+
+    label_texts = []
+    label_anchors = []
+    if not vectors.empty:
+        cloud_scale, vector_scale = calculate_biplot_vector_scale(
+            points["PC1"],
+            points["PC2"],
+            np.hypot(vectors["PC1"], vectors["PC2"]),
+        )
+
+        for _, row in vectors.reset_index(drop=True).iterrows():
+            feature = str(row["feature"])
+            color = BIOCHEM_COLOR_MAP.get(
+                feature,
+                BIOCHEM_COLOR_MAP.get("Fe") if feature == "Iron" else "#4A4A4A",
+            )
+            tip_x = float(row["PC1"]) * vector_scale
+            tip_y = float(row["PC2"]) * vector_scale
+            draw_biplot_vector(
+                ax,
+                tip_x,
+                tip_y,
+                color,
+                str(row["vector_type"]),
+                cloud_scale,
+            )
+            text = ax.text(
+                tip_x,
+                tip_y,
+                feature,
+                ha="left" if tip_x >= 0 else "right",
+                va="center",
+                fontsize=8,
+                color=color,
+                bbox=dict(facecolor="white", edgecolor="none", alpha=1.0, pad=1.0),
+                zorder=4,
+            )
+            label_texts.append(text)
+            label_anchors.append((tip_x, tip_y))
+
+    layout_biplot_labels(ax, label_texts, label_anchors)
+
+    compartment_legend = ax.legend(
+        title="Compartment",
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        frameon=False,
+        fontsize=8,
+    )
+    ax.add_artist(compartment_legend)
+    vector_handles = [
+        Line2D([], [], color="0.25", lw=1.6, linestyle="-", label="Core PCA loading"),
+        Line2D([], [], color="0.25", lw=1.6, linestyle="--", label="Sparse Spearman vector"),
+    ]
+    ax.legend(
+        handles=vector_handles,
+        loc="lower left",
+        bbox_to_anchor=(1.01, 0.0),
+        frameon=False,
+        fontsize=8,
+    )
+    ax.set_xlabel("PC1")
+    ax.set_ylabel("PC2")
+    ax.set_title(title)
+    ax.set_box_aspect(BIPLOT_BOX_ASPECT)
+    fig.subplots_adjust(right=0.76)
+    save_all_formats(fig, out_base, cfg)
+
+
 # ----------------------------
 # Stats
 # ----------------------------
@@ -1037,6 +1383,321 @@ def confusion_tables(y_true: pd.Series, y_pred: pd.Series) -> Tuple[pd.DataFrame
     row_norm = raw.div(raw.sum(axis=1).replace(0, np.nan), axis=0)
     col_norm = raw.div(raw.sum(axis=0).replace(0, np.nan), axis=1)
     return raw, row_norm, col_norm
+
+
+def bias_corrected_cramers_v(left: pd.Series, right: pd.Series) -> float:
+    """Bias-corrected Cramér's V for two categorical variables."""
+    table = pd.crosstab(left.astype(str), right.astype(str), dropna=False).to_numpy(dtype=float)
+    n = float(table.sum())
+    if n <= 1 or min(table.shape) < 2:
+        return float("nan")
+    expected = np.outer(table.sum(axis=1), table.sum(axis=0)) / n
+    valid = expected > 0
+    chi2 = float(np.sum(np.square(table[valid] - expected[valid]) / expected[valid]))
+    phi2 = chi2 / n
+    rows, cols = table.shape
+    phi2_corrected = max(0.0, phi2 - ((cols - 1) * (rows - 1)) / (n - 1))
+    rows_corrected = rows - np.square(rows - 1) / (n - 1)
+    cols_corrected = cols - np.square(cols - 1) / (n - 1)
+    denominator = min(rows_corrected - 1, cols_corrected - 1)
+    return float(np.sqrt(phi2_corrected / denominator)) if denominator > 0 else float("nan")
+
+
+def grouping_redundancy_table(
+    frame: pd.DataFrame,
+    grouping_columns: Dict[str, str],
+) -> pd.DataFrame:
+    """Pairwise categorical agreement on identical nonmissing observations."""
+    rows = []
+    labels = list(grouping_columns)
+    for left_name, right_name in combinations(labels, 2):
+        left_col = grouping_columns[left_name]
+        right_col = grouping_columns[right_name]
+        matched = frame[[left_col, right_col]].dropna()
+        if matched.empty:
+            continue
+        left = matched[left_col].astype(str)
+        right = matched[right_col].astype(str)
+        rows.append({
+            "grouping_a": left_name,
+            "grouping_b": right_name,
+            "n_matched": int(len(matched)),
+            "levels_a": int(left.nunique()),
+            "levels_b": int(right.nunique()),
+            "normalized_mutual_information": float(
+                normalized_mutual_info_score(left, right)
+            ),
+            "cramers_v_bias_corrected": bias_corrected_cramers_v(left, right),
+        })
+    return pd.DataFrame(rows)
+
+
+def plot_grouping_redundancy(
+    associations: pd.DataFrame,
+    grouping_order: List[str],
+    out_base: str,
+    cfg: Config,
+) -> None:
+    if associations.empty:
+        return
+    metrics = [
+        ("normalized_mutual_information", "Normalized mutual information"),
+        ("cramers_v_bias_corrected", "Bias-corrected Cramér's V"),
+    ]
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.5), squeeze=False)
+    for ax, (metric, title) in zip(axes[0], metrics):
+        matrix = pd.DataFrame(
+            np.eye(len(grouping_order)),
+            index=grouping_order,
+            columns=grouping_order,
+        )
+        for row in associations.itertuples(index=False):
+            value = float(getattr(row, metric))
+            matrix.loc[row.grouping_a, row.grouping_b] = value
+            matrix.loc[row.grouping_b, row.grouping_a] = value
+        image = ax.imshow(matrix.to_numpy(dtype=float), vmin=0, vmax=1, cmap="Blues")
+        ax.set_xticks(range(len(grouping_order)))
+        ax.set_xticklabels(grouping_order, rotation=35, ha="right")
+        ax.set_yticks(range(len(grouping_order)))
+        ax.set_yticklabels(grouping_order)
+        ax.set_title(title)
+        for i in range(len(grouping_order)):
+            for j in range(len(grouping_order)):
+                value = matrix.iloc[i, j]
+                ax.text(
+                    j,
+                    i,
+                    f"{value:.2f}" if np.isfinite(value) else "NA",
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                    color="white" if np.isfinite(value) and value >= 0.55 else "black",
+                )
+        fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
+    fig.suptitle("Redundancy among environmental grouping systems")
+    fig.tight_layout()
+    save_all_formats(fig, out_base, cfg)
+
+
+def train_test_benchmark_design(
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    continuous: List[str],
+    categorical: List[str],
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Create leakage-free design matrices using training-derived scaling and levels."""
+    train_parts = [np.ones((len(train), 1), dtype=float)]
+    test_parts = [np.ones((len(test), 1), dtype=float)]
+    for column in continuous:
+        train_values = pd.to_numeric(train[column], errors="coerce").to_numpy(dtype=float)
+        test_values = pd.to_numeric(test[column], errors="coerce").to_numpy(dtype=float)
+        mean = float(np.mean(train_values))
+        scale = float(np.std(train_values, ddof=0))
+        if scale > 0:
+            train_values = (train_values - mean) / scale
+            test_values = (test_values - mean) / scale
+        else:
+            train_values = np.zeros(len(train), dtype=float)
+            test_values = np.zeros(len(test), dtype=float)
+        train_parts.append(train_values[:, None])
+        test_parts.append(test_values[:, None])
+    for column in categorical:
+        train_values = train[column].astype(str)
+        test_values = test[column].astype(str)
+        levels = sorted(train_values.unique().tolist())
+        for level in levels[1:]:
+            train_parts.append(train_values.eq(level).to_numpy(dtype=float)[:, None])
+            test_parts.append(test_values.eq(level).to_numpy(dtype=float)[:, None])
+    return np.column_stack(train_parts), np.column_stack(test_parts)
+
+
+def collapse_rare_levels(series: pd.Series, minimum_n: int) -> pd.Series:
+    values = series.astype(str)
+    counts = values.value_counts()
+    rare = set(counts[counts < minimum_n].index)
+    return values.where(~values.isin(rare), "rare")
+
+
+def heldout_sparse_cv(
+    frame: pd.DataFrame,
+    feature: str,
+    depth_col: str,
+    season_col: str,
+    cruise_col: str,
+    grouping_columns: Dict[str, str],
+    minimum_group_n: int,
+    minimum_cruises: int = 10,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Leave-one-cruise-out prediction of one PCA-excluded biochemical feature."""
+    required = [feature, depth_col, season_col, cruise_col] + list(grouping_columns.values())
+    cohort = frame[required].copy()
+    cohort[feature] = pd.to_numeric(cohort[feature], errors="coerce")
+    cohort[depth_col] = pd.to_numeric(cohort[depth_col], errors="coerce")
+    cohort = cohort.replace([np.inf, -np.inf], np.nan).dropna()
+    if cohort.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    for column in grouping_columns.values():
+        cohort[column] = collapse_rare_levels(cohort[column], minimum_group_n)
+
+    models: Dict[str, Tuple[List[str], List[str]]] = {
+        "Depth + season baseline": ([depth_col], [season_col]),
+    }
+    for model_name, column in grouping_columns.items():
+        models[model_name] = ([depth_col], [season_col, column])
+
+    y_raw = cohort[feature].to_numpy(dtype=float)
+    y = np.sign(y_raw) * np.log1p(np.abs(y_raw))
+    cruises = cohort[cruise_col].astype(str)
+    audit = pd.DataFrame([{
+        "feature": feature,
+        "n_observations": int(len(cohort)),
+        "n_cruises": int(cruises.nunique()),
+        "response_transform": "signed_log1p",
+        "status": (
+            "ok"
+            if cruises.nunique() >= minimum_cruises
+            else "insufficient_cruises"
+        ),
+        **{
+            f"levels_{model_name.lower().replace(' ', '_')}": int(
+                cohort[column].nunique()
+            )
+            for model_name, column in grouping_columns.items()
+        },
+    }])
+    if cruises.nunique() < minimum_cruises:
+        return pd.DataFrame(), audit
+
+    rows = []
+    for fold in sorted(cruises.unique()):
+        test_mask = cruises.eq(fold).to_numpy()
+        train_mask = ~test_mask
+        if test_mask.sum() < 1 or train_mask.sum() < 3:
+            continue
+        train_mean = float(np.mean(y[train_mask]))
+        baseline_sse = float(np.square(y[test_mask] - train_mean).sum())
+        for model_name, (continuous, categorical) in models.items():
+            x_train, x_test = train_test_benchmark_design(
+                cohort.loc[train_mask],
+                cohort.loc[test_mask],
+                continuous,
+                categorical,
+            )
+            coefficients = np.linalg.pinv(x_train) @ y[train_mask]
+            predicted = x_test @ coefficients
+            sse = float(np.square(y[test_mask] - predicted).sum())
+            rows.append({
+                "feature": feature,
+                "fold_cruise": fold,
+                "model": model_name,
+                "n_train": int(train_mask.sum()),
+                "n_test": int(test_mask.sum()),
+                "sse": sse,
+                "baseline_sse": baseline_sse,
+                "cv_r2": 1.0 - sse / baseline_sse if baseline_sse > 0 else np.nan,
+                "rmse_log1p": float(np.sqrt(sse / test_mask.sum())),
+            })
+    folds = pd.DataFrame(rows)
+    return folds, audit
+
+
+def summarize_sparse_cv(folds: pd.DataFrame) -> pd.DataFrame:
+    if folds.empty:
+        return pd.DataFrame()
+    rows = []
+    for (feature, model), group in folds.groupby(["feature", "model"], sort=False):
+        total_sse = float(group["sse"].sum())
+        total_baseline = float(group["baseline_sse"].sum())
+        total_n = int(group["n_test"].sum())
+        rows.append({
+            "feature": feature,
+            "model": model,
+            "folds": int(group["fold_cruise"].nunique()),
+            "heldout_observations": total_n,
+            "pooled_cv_r2": 1.0 - total_sse / total_baseline if total_baseline > 0 else np.nan,
+            "fold_cv_r2_mean": float(group["cv_r2"].mean()),
+            "fold_cv_r2_median": float(group["cv_r2"].median()),
+            "pooled_rmse_log1p": float(np.sqrt(total_sse / total_n)) if total_n else np.nan,
+        })
+    return pd.DataFrame(rows)
+
+
+def paired_sparse_cv_comparisons(
+    folds: pd.DataFrame,
+    bootstrap_replicates: int,
+    permutation_replicates: int,
+    random_state: int,
+) -> pd.DataFrame:
+    """Paired fold-wise CV-R² differences with bootstrap CIs and sign-flip tests."""
+    if folds.empty:
+        return pd.DataFrame()
+    rng = np.random.default_rng(random_state)
+    rows = []
+    for feature, feature_folds in folds.groupby("feature"):
+        pivot = feature_folds.pivot(
+            index="fold_cruise", columns="model", values="cv_r2"
+        )
+        for model_a, model_b in combinations(pivot.columns.tolist(), 2):
+            paired = pivot[[model_a, model_b]].dropna()
+            if paired.empty:
+                continue
+            differences = (paired[model_a] - paired[model_b]).to_numpy(dtype=float)
+            bootstrap = np.array([
+                rng.choice(differences, size=len(differences), replace=True).mean()
+                for _ in range(bootstrap_replicates)
+            ])
+            null = np.array([
+                np.mean(differences * rng.choice([-1.0, 1.0], size=len(differences)))
+                for _ in range(permutation_replicates)
+            ])
+            observed = float(np.mean(differences))
+            rows.append({
+                "feature": feature,
+                "model_a": model_a,
+                "model_b": model_b,
+                "metric": "fold_cv_r2",
+                "n_paired_folds": int(len(differences)),
+                "mean_difference_a_minus_b": observed,
+                "ci_lower": float(np.quantile(bootstrap, 0.025)),
+                "ci_upper": float(np.quantile(bootstrap, 0.975)),
+                "sign_flip_p_value": float(
+                    (1 + np.sum(np.abs(null) >= abs(observed)))
+                    / (permutation_replicates + 1)
+                ),
+            })
+    return pd.DataFrame(rows)
+
+
+def plot_sparse_cv_summary(
+    summary: pd.DataFrame,
+    out_base: str,
+    cfg: Config,
+) -> None:
+    if summary.empty:
+        return
+    features = summary["feature"].drop_duplicates().tolist()
+    models = summary["model"].drop_duplicates().tolist()
+    fig, axes = plt.subplots(
+        1,
+        len(features),
+        figsize=(5.3 * len(features), 5.2),
+        squeeze=False,
+        sharey=True,
+    )
+    colors = plt.cm.Greys(np.linspace(0.35, 0.85, len(models)))
+    for ax, feature in zip(axes[0], features):
+        current = summary[summary["feature"] == feature].set_index("model")
+        values = [current.loc[model, "pooled_cv_r2"] if model in current.index else np.nan for model in models]
+        ax.bar(range(len(models)), values, color=colors, edgecolor="black", linewidth=0.5)
+        ax.axhline(0, color="black", linewidth=0.8)
+        ax.set_xticks(range(len(models)))
+        ax.set_xticklabels(models, rotation=35, ha="right")
+        ax.set_title(feature)
+        ax.set_ylabel("Leave-one-cruise-out pooled R²")
+    fig.suptitle("Prediction of PCA-excluded biochemical features")
+    fig.tight_layout()
+    save_all_formats(fig, out_base, cfg)
 
 
 # ----------------------------
@@ -1139,13 +1800,10 @@ def responsibility_weighted_silhouette(X: np.ndarray, labels: pd.Series, weights
     """
     Weighted silhouette for GMM labels using per-sample weights (e.g., max_prob).
 
-    IMPORTANT: scikit-learn's silhouette_score forwards **kwds to the pairwise distance
-    function for some metrics (including 'euclidean'), which can break when sample_weight
-    is present. To be robust across sklearn versions, we compute distances explicitly
-    and use metric='precomputed'.
+    Per-observation silhouette values are computed first and then averaged
+    using assignment confidence as the observation weight.
     """
-    from sklearn.metrics import silhouette_score
-    from sklearn.metrics import pairwise_distances
+    from sklearn.metrics import silhouette_samples
 
     lab = labels.astype(str).fillna("NA").to_numpy()
     if len(set(lab)) < 2:
@@ -1158,11 +1816,12 @@ def responsibility_weighted_silhouette(X: np.ndarray, labels: pd.Series, weights
     if np.all(w <= 0):
         return np.nan
 
-    # Precompute Euclidean distances to avoid passing sample_weight into distance functions
-    D = pairwise_distances(X, metric="euclidean")
-
     try:
-        return float(silhouette_score(D, lab, metric="precomputed", sample_weight=w))
+        samples = silhouette_samples(X, lab, metric="euclidean")
+        valid = np.isfinite(samples) & np.isfinite(w) & (w > 0)
+        if not valid.any():
+            return np.nan
+        return float(np.average(samples[valid], weights=w[valid]))
     except Exception:
         return np.nan
 
@@ -1198,7 +1857,9 @@ def within_block_permutation_test(
         for b in uniq_blocks:
             idx = np.where(blk == b)[0]
             if idx.size >= 2:
-                rng.shuffle(perm[idx])
+                shuffled = perm[idx].copy()
+                rng.shuffle(shuffled)
+                perm[idx] = shuffled
         try:
             null_scores.append(float(silhouette_score(X, perm, metric="euclidean")))
         except Exception:
@@ -1208,7 +1869,7 @@ def within_block_permutation_test(
         return {"observed": obs, "p_value": np.nan, "n_null": 0}
 
     null_arr = np.array(null_scores, dtype=float)
-    p = float(np.mean(null_arr >= obs))
+    p = float((np.sum(null_arr >= obs) + 1) / (null_arr.size + 1))
     return {"observed": obs, "p_value": p, "n_null": int(null_arr.size)}
 
 
@@ -1294,6 +1955,10 @@ def maybe_load_pca_tables(cfg: Config) -> Dict[str, pd.DataFrame]:
         out["pca_loadings"] = pd.read_csv(cfg.pca_loadings_path)
     if cfg.pc_loading_concentration_path and os.path.exists(cfg.pc_loading_concentration_path):
         out["pc_loading_concentration"] = pd.read_csv(cfg.pc_loading_concentration_path)
+    if cfg.pca_tables_dir:
+        sparse_path = os.path.join(cfg.pca_tables_dir, "sparse_feature_pc_spearman.csv")
+        if os.path.exists(sparse_path):
+            out["sparse_feature_pc_spearman"] = pd.read_csv(sparse_path)
     return out
 
 
@@ -1337,6 +2002,10 @@ def plot_top_loadings_per_pc(load_long: pd.DataFrame, pc: str, top_n: int, out_b
 
 def main() -> None:
     cfg = parse_args()
+    if cfg.benchmark_min_group_n < 1:
+        raise ValueError("--benchmark-min-group-n must be positive.")
+    if cfg.benchmark_bootstrap < 1 or cfg.benchmark_permutations < 1:
+        raise ValueError("Benchmark bootstrap and permutation counts must be positive.")
     tables_dir, plots_dir = ensure_dirs(cfg.outdir)
 
     # Load (with dedup col guard)
@@ -1348,6 +2017,11 @@ def main() -> None:
         if cfg.o2_assignments
         else None
     )
+    df_hybrid_assign = (
+        read_table_dedup_cols(cfg.hybrid_assignments, cfg.sep_hybrid_assign)
+        if cfg.hybrid_assignments
+        else None
+    )
 
     # Datetimes
     df_matrix = coerce_datetime(df_matrix, cfg.date_col)
@@ -1355,6 +2029,8 @@ def main() -> None:
     df_assign = coerce_datetime(df_assign, cfg.date_col)
     if df_o2_assign is not None:
         df_o2_assign = coerce_datetime(df_o2_assign, cfg.date_col)
+    if df_hybrid_assign is not None:
+        df_hybrid_assign = coerce_datetime(df_hybrid_assign, cfg.date_col)
 
     # Build merge keys
     df_matrix = build_merge_key(df_matrix, cfg)
@@ -1415,6 +2091,30 @@ def main() -> None:
     else:
         m["o2_compartment"] = label_o2_compartment(m[cfg.oxygen_col], cfg)
         m_sp["o2_compartment"] = label_o2_compartment(m_sp[cfg.oxygen_col], cfg)
+
+    if df_hybrid_assign is not None:
+        if cfg.hybrid_compartment_col not in df_hybrid_assign.columns:
+            raise ValueError(
+                f"Hybrid assignments missing label column '{cfg.hybrid_compartment_col}'."
+            )
+        if cfg.id_col in df_hybrid_assign.columns and cfg.id_col in m.columns:
+            hybrid_key = cfg.id_col
+        elif all(column in df_hybrid_assign.columns for column in cfg.key_cols):
+            df_hybrid_assign = build_merge_key(df_hybrid_assign, cfg)
+            hybrid_key = cfg.derived_key_col
+        else:
+            raise ValueError(
+                "Hybrid assignments cannot be joined: expected the configured ID "
+                f"column '{cfg.id_col}' or all composite key columns {cfg.key_cols}."
+            )
+        hybrid_lookup = (
+            df_hybrid_assign[[hybrid_key, cfg.hybrid_compartment_col]]
+            .dropna(subset=[hybrid_key])
+            .drop_duplicates(subset=[hybrid_key], keep="first")
+            .set_index(hybrid_key)[cfg.hybrid_compartment_col]
+        )
+        m["hybrid_compartment"] = m[hybrid_key].map(hybrid_lookup)
+        m_sp["hybrid_compartment"] = m_sp[hybrid_key].map(hybrid_lookup)
 
     m[cfg.depth_anchored_col] = pd.to_numeric(m[cfg.depth_anchored_col], errors="coerce")
     m_sp[cfg.depth_anchored_col] = pd.to_numeric(m_sp[cfg.depth_anchored_col], errors="coerce")
@@ -1492,6 +2192,115 @@ def main() -> None:
     yp = m["component"].astype("object").fillna("NA")
     ari = float(adjusted_rand_score(yt.astype(str), yp.astype(str)))
     nmi = float(normalized_mutual_info_score(yt.astype(str), yp.astype(str)))
+
+    # ----------------------------
+    # Independent grouping benchmarks
+    # ----------------------------
+    season_col = "Season" if "Season" in m.columns else "Season_matrix"
+    redundancy_groupings = {
+        "Anchored depth": "__depth_anchor_class__",
+        "Season": season_col,
+        "Legacy O2": "o2_compartment",
+        "GMM": "component",
+    }
+    if "hybrid_compartment" in m.columns:
+        redundancy_groupings["Hybrid"] = "hybrid_compartment"
+
+    redundancy_frame = m.copy()
+    redundancy_frame["__depth_anchor_class__"] = pd.to_numeric(
+        redundancy_frame[cfg.depth_anchored_col], errors="coerce"
+    ).map(lambda value: f"{value:g} m" if np.isfinite(value) else np.nan)
+    redundancy = grouping_redundancy_table(
+        redundancy_frame,
+        redundancy_groupings,
+    )
+    redundancy.to_csv(
+        os.path.join(tables_dir, "grouping_redundancy_pairwise.csv"),
+        index=False,
+    )
+    plot_grouping_redundancy(
+        redundancy,
+        list(redundancy_groupings),
+        os.path.join(plots_dir, "grouping_redundancy_heatmap"),
+        cfg,
+    )
+
+    predictor_groupings = {
+        "Legacy O2": "o2_compartment",
+        "GMM": "component",
+    }
+    if "hybrid_compartment" in m_sp.columns:
+        predictor_groupings["Hybrid"] = "hybrid_compartment"
+
+    sparse_fold_parts = []
+    sparse_audit_parts = []
+    sparse_requested_audit = []
+    sparse_season_col = "Season" if "Season" in m_sp.columns else "Season_matrix"
+    for feature in cfg.benchmark_sparse_features:
+        if feature not in m_sp.columns:
+            sparse_requested_audit.append({
+                "feature": feature,
+                "status": "skipped_missing_column",
+                "n_observations": 0,
+                "n_cruises": 0,
+            })
+            continue
+        folds, audit = heldout_sparse_cv(
+            frame=m_sp,
+            feature=feature,
+            depth_col=cfg.depth_anchored_col,
+            season_col=sparse_season_col,
+            cruise_col=cfg.cruise_col,
+            grouping_columns=predictor_groupings,
+            minimum_group_n=cfg.benchmark_min_group_n,
+            minimum_cruises=cfg.benchmark_min_cruises,
+        )
+        if not audit.empty:
+            sparse_audit_parts.append(audit)
+        if not folds.empty:
+            sparse_fold_parts.append(folds)
+
+    sparse_folds = (
+        pd.concat(sparse_fold_parts, ignore_index=True)
+        if sparse_fold_parts
+        else pd.DataFrame()
+    )
+    sparse_summary = summarize_sparse_cv(sparse_folds)
+    sparse_pairs = paired_sparse_cv_comparisons(
+        sparse_folds,
+        bootstrap_replicates=cfg.benchmark_bootstrap,
+        permutation_replicates=cfg.benchmark_permutations,
+        random_state=cfg.benchmark_random_state,
+    )
+    sparse_audit_frames = sparse_audit_parts + (
+        [pd.DataFrame(sparse_requested_audit)] if sparse_requested_audit else []
+    )
+    sparse_audit = (
+        pd.concat(sparse_audit_frames, ignore_index=True, sort=False)
+        if sparse_audit_frames
+        else pd.DataFrame()
+    )
+    sparse_folds.to_csv(
+        os.path.join(tables_dir, "heldout_sparse_feature_cv_folds.csv"),
+        index=False,
+    )
+    sparse_summary.to_csv(
+        os.path.join(tables_dir, "heldout_sparse_feature_cv_summary.csv"),
+        index=False,
+    )
+    sparse_pairs.to_csv(
+        os.path.join(tables_dir, "heldout_sparse_feature_paired_comparisons.csv"),
+        index=False,
+    )
+    sparse_audit.to_csv(
+        os.path.join(tables_dir, "heldout_sparse_feature_cohort_audit.csv"),
+        index=False,
+    )
+    plot_sparse_cv_summary(
+        sparse_summary,
+        os.path.join(plots_dir, "heldout_sparse_feature_cv_performance"),
+        cfg,
+    )
 
     # PC-space matrices
     X_pc = m[pc_cols].apply(pd.to_numeric, errors="coerce")
@@ -1793,6 +2602,11 @@ def main() -> None:
     # NEW: PC1 vs PC2 scatter overlays
     # ----------------------------
     if "PC1" in m.columns and "PC2" in m.columns:
+        if "GMM_COMPARTMENT_PALETTE" in locals() and isinstance(GMM_COMPARTMENT_PALETTE, dict) and len(GMM_COMPARTMENT_PALETTE) > 0:
+            gmm_pal = {str(k): v for k, v in GMM_COMPARTMENT_PALETTE.items()}
+        else:
+            gmm_pal = build_categorical_grayscale_palette(m["component"])
+
         # 1) PC1 vs PC2 colored by O2 compartments (fixed palette)
         plot_pc1_vs_pc2_categorical(
             df=m,
@@ -1806,6 +2620,52 @@ def main() -> None:
             s=14.0,
             alpha=0.40,
         )
+
+        if "pca_loadings" in pca_tables:
+            sparse_vectors = pca_tables.get("sparse_feature_pc_spearman")
+            plot_compartment_biplot(
+                df=m,
+                label_col="component",
+                palette=gmm_pal,
+                loadings_df=pca_tables["pca_loadings"],
+                sparse_corr_df=sparse_vectors,
+                title="GMM compartments with biochemical PCA vectors",
+                out_base=os.path.join(plots_dir, "D3_pc1_vs_pc2_biplot_gmm"),
+                cfg=cfg,
+            )
+            plot_compartment_biplot(
+                df=m,
+                label_col="o2_compartment",
+                palette=O2_COMPARTMENT_PALETTE,
+                loadings_df=pca_tables["pca_loadings"],
+                sparse_corr_df=sparse_vectors,
+                title="O2 compartments with biochemical PCA vectors",
+                out_base=os.path.join(plots_dir, "D4_pc1_vs_pc2_biplot_o2"),
+                cfg=cfg,
+            )
+            if "hybrid_compartment" in m.columns:
+                hybrid_pal = build_hybrid_parent_palette(
+                    m["hybrid_compartment"]
+                )
+                hybrid_display = {
+                    str(label): hybrid_o2_gmm_label(label)
+                    for label in m["hybrid_compartment"]
+                    .astype("object")
+                    .dropna()
+                    .astype(str)
+                    .unique()
+                }
+                plot_compartment_biplot(
+                    df=m,
+                    label_col="hybrid_compartment",
+                    palette=hybrid_pal,
+                    loadings_df=pca_tables["pca_loadings"],
+                    sparse_corr_df=sparse_vectors,
+                    title="Hybrid O2-GMM compartments with biochemical PCA vectors",
+                    out_base=os.path.join(plots_dir, "D5_pc1_vs_pc2_biplot_hybrid"),
+                    cfg=cfg,
+                    display_labels=hybrid_display,
+                )
 
         # 2) PC1 vs PC2 colored by GMM compartments (categorical grayscale)
         # Use existing GMM palette if already created; otherwise build deterministically from labels

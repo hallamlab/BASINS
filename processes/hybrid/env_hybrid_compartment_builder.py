@@ -27,12 +27,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import install_publication_style
+
+install_publication_style()
 
 
 # -----------------------------
@@ -234,7 +242,9 @@ def run_umap_from_braycurtis(
     cbar = plt.colorbar(sc)
     cbar.set_label("Dominant state index")
     plt.tight_layout()
-    plt.savefig(os.path.join(plots_dir, f"umap_{name}.png"), dpi=200)
+    save_figure_all_formats(
+        plt.gcf(), os.path.join(plots_dir, f"umap_{name}.png"), dpi=200
+    )
     plt.close()
 
 def _find_resp_cols(df: pd.DataFrame, prefix: str) -> List[str]:
@@ -547,7 +557,7 @@ def plot_hybrid_stacked_gradient(
     plt.title(f"Hybrid cruise composition (stacked; colormap={cfg.cmap})")
     # legend is usually unreadable for 4*K; keep it off by default
     plt.tight_layout()
-    plt.savefig(outpath, dpi=200)
+    save_figure_all_formats(plt.gcf(), outpath, dpi=200)
     plt.close()
 
 
@@ -595,7 +605,7 @@ def plot_hybrid_stacked_topN(
     plt.title(f"Hybrid cruise composition (Top-{keep} + other; colormap={cfg.cmap})")
     plt.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), frameon=False, fontsize=8)
     plt.tight_layout()
-    plt.savefig(outpath, dpi=200)
+    save_figure_all_formats(plt.gcf(), outpath, dpi=200)
     plt.close()
 
 
@@ -638,7 +648,7 @@ def plot_bray_curtis_changes(
     plt.ylabel("Bray–Curtis vs previous cruise")
     plt.title("Hybrid regime-change signal (spikes = big shift)")
     plt.tight_layout()
-    plt.savefig(out_png, dpi=200)
+    save_figure_all_formats(plt.gcf(), out_png, dpi=200)
     plt.close()
 
     return tbl

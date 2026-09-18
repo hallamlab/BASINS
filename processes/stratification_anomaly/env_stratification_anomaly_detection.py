@@ -4,6 +4,10 @@
 #   - stratification_timeseries.tsv
 #   - annual_extremes.tsv
 #   - stratification_monthly_profile.pdf
+#   - stratification_vs_pea_timeseries.pdf (when --pea-metrics is supplied)
+#   - stratification_physical_biochem_timeseries.{pdf,png,svg} (when --pea-metrics is supplied)
+#   - stratification_physical_biochem_timeseries_complete_cases.{pdf,png,svg}
+#   - stratification_physical_biochem_timeseries.tsv (when --pea-metrics is supplied)
 
 #!/usr/bin/env python3
 """
@@ -36,6 +40,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import sys
 import warnings
 from pathlib import Path
 from itertools import combinations
@@ -44,23 +49,17 @@ from typing import List
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from scipy.stats import zscore
 from scipy.ndimage import gaussian_filter1d
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_style import install_publication_style
+
 warnings.filterwarnings("ignore")
 
-plt.rcParams.update(
-    {
-        "font.size": 11,
-        "font.family": "sans-serif",
-        "axes.linewidth": 1.2,
-        "figure.dpi": 150,
-    }
-)
-sns.set_style("white")
+install_publication_style()
 
 COVERAGE_THRESHOLD = 0.51
 
@@ -431,6 +430,7 @@ def identify_annual_extremes(
             {
                 "date": max_strat_row["date"],
                 "year": year,
+                "stratification_score": max_strat_row["stratification_score"],
                 "normalized_score": max_strat_row["normalized_score"],
                 "extreme_type": "max_stratification",
             }
@@ -442,6 +442,7 @@ def identify_annual_extremes(
             {
                 "date": min_mix_row["date"],
                 "year": year,
+                "stratification_score": min_mix_row["stratification_score"],
                 "normalized_score": min_mix_row["normalized_score"],
                 "extreme_type": "max_mixing",
             }
@@ -466,7 +467,55 @@ def _load_pea_timeseries(pea_path: Path, date_col: str) -> pd.DataFrame:
     pea_df["date"] = pd.to_datetime(pea_df[date_col], errors="coerce")
     pea_df = pea_df.dropna(subset=["date"])
 
-    for col in ["pea_J_m3", "pea_upper_J_m3", "pea_lower_J_m3"]:
+    numeric_cols = [
+        "pea_J_m3",
+        "pea_upper_J_m3",
+        "pea_lower_J_m3",
+        "pea_threshold_low",
+        "pea_threshold_high",
+        "deep_intrusion_threshold",
+        "deep_intrusion_score",
+        "deep_intrusion_expected_sigma0_kg_m3",
+        "deep_intrusion_density_anomaly_kg_m3",
+        "deep_intrusion_density_change_kg_m3",
+        "deep_intrusion_oxygen_lower_mean",
+        "oxygen_intrusion_event_id",
+        "oxygen_intrusion_bottom_depths_n",
+        "oxygen_intrusion_bottom_median_um",
+        "oxygen_intrusion_change_median_um",
+        "oxygen_intrusion_baseline_change_median_um",
+        "oxygen_intrusion_onset_threshold_um",
+        "oxygen_intrusion_persistence_threshold_um",
+        "oxygen_intrusion_end_consecutive_cruises",
+        "renewal_event_id",
+        "renewal_nitrate_bottom_depths_n",
+        "renewal_nitrate_bottom_median_um",
+        "renewal_nitrate_detection_limit_um",
+        "renewal_nitrate_min_depths",
+        "n2_mean_s-2",
+        "n2_max_s-2",
+        "n2_max_depth_m",
+        "pycnocline_depth_m",
+        "sigma0_upper_lower_diff_kg_m3",
+        "mld_depth_m_dr0p03",
+        "mld_depth_m_dr0p125",
+        "pea_threshold_low_ci_lower",
+        "pea_threshold_low_ci_upper",
+        "pea_threshold_high_ci_lower",
+        "pea_threshold_high_ci_upper",
+        "pea_lower_threshold_low",
+        "pea_lower_threshold_high",
+        "pea_lower_threshold_low_ci_lower",
+        "pea_lower_threshold_low_ci_upper",
+        "pea_lower_threshold_high_ci_lower",
+        "pea_lower_threshold_high_ci_upper",
+        "physical_regime_probability_mixed",
+        "physical_regime_probability_intermediate",
+        "physical_regime_probability_stratified",
+        "physical_regime_max_probability",
+        "physical_regime_entropy",
+    ]
+    for col in numeric_cols:
         if col in pea_df.columns:
             pea_df[col] = pd.to_numeric(pea_df[col], errors="coerce")
 
@@ -474,8 +523,364 @@ def _load_pea_timeseries(pea_path: Path, date_col: str) -> pd.DataFrame:
     if not keep_cols:
         raise ValueError("PEA metrics file missing PEA columns (pea_J_m3/pea_upper_J_m3/pea_lower_J_m3)")
 
-    pea_ts = pea_df.groupby("date", sort=True)[keep_cols].mean().reset_index()
+    retained_numeric = [col for col in numeric_cols if col in pea_df.columns]
+    retained_classes = [
+        col for col in [
+            "pea_class", "pea_lower_class", "physical_regime_class", "deep_intrusion_class",
+            "oxygen_intrusion_class", "renewal_phase", "renewal_nitrate_status",
+            "renewal_inference_reason", "renewal_nitrate_bottom_depths_m",
+            "oxygen_anomaly_class",
+        ]
+        if col in pea_df.columns
+    ]
+    retained_flags = [
+        col for col in [
+            "renewal_onset", "renewal_last_active", "renewal_end_confirmed",
+            "renewal_phase_inferred", "renewal_nitrate_supported",
+        ]
+        if col in pea_df.columns
+    ]
+    aggregations = {col: "mean" for col in retained_numeric}
+    aggregations.update({col: "first" for col in retained_classes})
+    aggregations.update({col: "first" for col in retained_flags})
+    if "Cruise" in pea_df.columns:
+        aggregations["Cruise"] = "first"
+    pea_ts = pea_df.groupby("date", sort=True).agg(aggregations).reset_index()
     return pea_ts
+
+
+def _combine_stratification_and_physical_metrics(
+    timeseries_df: pd.DataFrame,
+    pea_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Create the auditable source table behind the combined time-series plot."""
+    strat_df = timeseries_df.copy()
+    strat_df["date"] = pd.to_datetime(strat_df["date"], errors="coerce")
+    strat_df = strat_df.dropna(subset=["date"])
+    physical_df = pea_df.copy()
+    if "Cruise" in physical_df.columns:
+        physical_df = physical_df.rename(columns={"Cruise": "physical_cruise"})
+    combined = pd.merge(physical_df, strat_df, on="date", how="outer", sort=True)
+    if "physical_cruise" in combined.columns:
+        if "Cruise" in combined.columns:
+            combined["Cruise"] = combined["physical_cruise"].combine_first(combined["Cruise"])
+        else:
+            combined["Cruise"] = combined["physical_cruise"]
+        combined = combined.drop(columns=["physical_cruise"])
+    combined = combined.sort_values("date").reset_index(drop=True)
+    combined["date"] = combined["date"].dt.strftime("%Y-%m-%d")
+    return combined
+
+
+def _year_panels(dates: pd.Series, max_years: int = 2) -> list[list[int]]:
+    years = sorted(pd.to_datetime(dates, errors="coerce").dropna().dt.year.unique().tolist())
+    return [years[i:i + max_years] for i in range(0, len(years), max_years)]
+
+
+def _shared_axis_limits(series: list[pd.Series]) -> tuple[float, float] | None:
+    """Return one padded finite range for repeated time-series panels."""
+    arrays = [pd.to_numeric(values, errors="coerce").to_numpy(dtype=float) for values in series]
+    finite = np.concatenate([values[np.isfinite(values)] for values in arrays if values.size])
+    if finite.size == 0:
+        return None
+    lower = float(finite.min())
+    upper = float(finite.max())
+    if lower == upper:
+        pad = max(abs(lower) * 0.05, 0.5)
+    else:
+        pad = (upper - lower) * 0.05
+    return lower - pad, upper + pad
+
+
+def _plot_with_missing_connectors(
+    ax, x, dates, values, *, color: str, linewidth: float, label: str, sequence=None
+) -> None:
+    """Plot solid observed runs and dashed bridges across missing observations.
+
+    This follows the older PEA comparison plot's gap convention while also
+    detecting explicit NA rows in the combined audit table.  A bridge is used
+    when observations have missing table rows between them or their calendar
+    separation is more than twice the series' median sampling interval.
+    """
+    y = pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(dtype=float)
+    dates = pd.to_datetime(pd.Series(dates), errors="coerce")
+    valid = np.flatnonzero(np.isfinite(y) & dates.notna().to_numpy())
+    if valid.size == 0:
+        return
+    valid_dates = dates.iloc[valid].to_numpy(dtype="datetime64[ns]")
+    source_sequence = np.asarray(sequence if sequence is not None else np.arange(len(y)))[valid]
+    date_deltas = np.diff(valid_dates).astype("timedelta64[D]").astype(float)
+    positive_deltas = date_deltas[np.isfinite(date_deltas) & (date_deltas > 0)]
+    median_delta = float(np.median(positive_deltas)) if positive_deltas.size else np.nan
+
+    run_start = 0
+    first_solid = True
+    for j in range(1, valid.size):
+        explicit_missing = (
+            valid[j] - valid[j - 1] > 1
+            or source_sequence[j] - source_sequence[j - 1] > 1
+        )
+        calendar_gap = (
+            np.isfinite(median_delta)
+            and median_delta > 0
+            and date_deltas[j - 1] > (2.0 * median_delta)
+        )
+        if explicit_missing or calendar_gap:
+            run = valid[run_start:j]
+            ax.plot(
+                np.asarray(x)[run], y[run], color=color, linewidth=linewidth,
+                label=label if first_solid else "_nolegend_",
+            )
+            first_solid = False
+            bridge = valid[j - 1:j + 1]
+            ax.plot(
+                np.asarray(x)[bridge], y[bridge], color=color, linewidth=linewidth,
+                linestyle="--", label="_nolegend_",
+            )
+            run_start = j
+    run = valid[run_start:]
+    ax.plot(
+        np.asarray(x)[run], y[run], color=color, linewidth=linewidth,
+        label=label if first_solid else "_nolegend_",
+    )
+
+
+def _date_cruise_labels(df: pd.DataFrame) -> list[str]:
+    """Format combined time-series ticks as ISO date plus an integer cruise ID."""
+    cruises = df.get("Cruise", pd.Series(pd.NA, index=df.index))
+    labels = []
+    for date, cruise in zip(df["date"], cruises):
+        date_label = pd.Timestamp(date).strftime("%Y-%m-%d")
+        numeric_cruise = pd.to_numeric(pd.Series([cruise]), errors="coerce").iloc[0]
+        if pd.notna(numeric_cruise) and float(numeric_cruise).is_integer():
+            cruise_label = str(int(numeric_cruise))
+        elif pd.notna(cruise) and str(cruise).strip():
+            cruise_label = str(cruise).strip()
+        else:
+            cruise_label = "NA"
+        labels.append(f"{date_label} [{cruise_label}]")
+    return labels
+
+
+def plot_physical_biochem_timeseries(
+    combined_df: pd.DataFrame,
+    output_base: Path,
+    title: str = "Physical stratification and biochemical depth separation",
+    years_per_panel: int = 2,
+    align_months: bool = False,
+) -> None:
+    """Plot physical and biochemical stratification with comparable split panels."""
+    plot_df = combined_df.copy()
+    plot_df["date"] = pd.to_datetime(plot_df["date"], errors="coerce")
+    plot_df = plot_df.dropna(subset=["date"]).sort_values("date")
+    if plot_df.empty:
+        print("  [i] Skipping combined physical/biochemical plot (no dated data).")
+        return
+
+    panels = _year_panels(plot_df["date"], max_years=years_per_panel)
+    if not panels:
+        return
+
+    fig, axes = plt.subplots(
+        len(panels),
+        1,
+        figsize=(22, max(4.0, 3.8 * len(panels))),
+        squeeze=False,
+    )
+    axes = axes[:, 0]
+    pea_lines = [
+        ("pea_J_m3", "PEA total", "tab:green"),
+        ("pea_upper_J_m3", "PEA upper", "tab:blue"),
+        ("pea_lower_J_m3", "PEA lower", "tab:orange"),
+    ]
+    left_limits = _shared_axis_limits([plot_df["stratification_score"]]) if "stratification_score" in plot_df else None
+    right_limits = _shared_axis_limits([plot_df[col] for col, _, _ in pea_lines if col in plot_df])
+
+    legend_handles = None
+    legend_labels = None
+    for ax_left, years in zip(axes, panels):
+        sub = plot_df[plot_df["date"].dt.year.isin(years)].copy().reset_index(drop=True)
+        x = sub["date"].dt.month.to_numpy() if align_months else np.arange(len(sub))
+        source_sequence = sub.get("_source_order", pd.Series(x, index=sub.index)).to_numpy()
+        ax_right = ax_left.twinx()
+
+        if "stratification_score" in sub.columns:
+            dcd = pd.to_numeric(sub["stratification_score"], errors="coerce").to_numpy()
+            _plot_with_missing_connectors(
+                ax_left, x, sub["date"], dcd, color="black", linewidth=1.3,
+                label="Depth-centroid distance (D)", sequence=source_sequence,
+            )
+            mask = np.isfinite(dcd)
+            ax_left.scatter(x[mask], dcd[mask], marker="o", s=34, facecolor="black",
+                            edgecolor="black", linewidth=0.7, zorder=5, label="_nolegend_")
+
+        for col, label, color in pea_lines:
+            if col not in sub.columns:
+                continue
+            values = pd.to_numeric(sub[col], errors="coerce").to_numpy()
+            _plot_with_missing_connectors(
+                ax_right, x, sub["date"], values, color=color, linewidth=1.2, label=label,
+                sequence=source_sequence,
+            )
+            mask = np.isfinite(values)
+            ax_right.scatter(x[mask], values[mask], marker="o", s=30, facecolor=color,
+                             edgecolor=color, linewidth=0.8, zorder=4, label="_nolegend_")
+
+        if align_months:
+            ax_left.set_xlim(0.5, 12.5)
+        else:
+            ax_left.set_xlim(-0.5, max(len(sub) - 0.5, 0.5))
+        ax_left.set_ylabel("Depth-centroid distance (D)")
+        ax_right.set_ylabel("PEA (J m$^{-3}$)")
+        if left_limits is not None:
+            ax_left.set_ylim(*left_limits)
+        if right_limits is not None:
+            ax_right.set_ylim(*right_limits)
+        ax_left.grid(axis="y", linestyle="--", alpha=0.30)
+        ax_left.set_title(str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}")
+        if align_months:
+            month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            labels_by_month = dict(zip(sub["date"].dt.month, _date_cruise_labels(sub)))
+            ax_left.set_xticks(np.arange(1, 13))
+            ax_left.set_xticklabels(
+                [f"{name}\n{labels_by_month.get(month, '—')}" for month, name in enumerate(month_names, 1)],
+                rotation=90, fontsize=7,
+            )
+        else:
+            ax_left.set_xticks(x)
+            ax_left.set_xticklabels(_date_cruise_labels(sub), rotation=90, fontsize=8)
+
+        if legend_handles is None:
+            left_h, left_l = ax_left.get_legend_handles_labels()
+            right_h, right_l = ax_right.get_legend_handles_labels()
+            legend_handles = left_h + right_h
+            legend_labels = left_l + right_l
+
+    fig.suptitle(title, y=0.998)
+    if legend_handles:
+        fig.legend(legend_handles, legend_labels, loc="upper left", bbox_to_anchor=(0.84, 0.985))
+    fig.tight_layout(rect=[0, 0, 0.83, 0.99])
+    for suffix in [".pdf", ".png", ".svg"]:
+        fig.savefig(output_base.with_suffix(suffix), dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print("  [✓] Saved combined physical/biochemical time-series plot")
+
+
+def plot_physical_biochem_monthly_profile(combined_df: pd.DataFrame, output_base: Path) -> None:
+    """Legacy-style monthly profiles for each current physical/biochemical metric."""
+    plot_df = combined_df.copy()
+    plot_df["date"] = pd.to_datetime(plot_df["date"], errors="coerce")
+    plot_df = plot_df.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
+    metrics = [
+        (
+            "stratification_score",
+            "Depth-centroid distance (D)",
+            "Depth-centroid distance",
+        ),
+        ("pea_J_m3", "PEA (J m$^{-3}$)", "Total potential energy anomaly"),
+        ("pea_upper_J_m3", "PEA (J m$^{-3}$)", "Upper-water-column potential energy anomaly"),
+        ("pea_lower_J_m3", "PEA (J m$^{-3}$)", "Lower-water-column potential energy anomaly"),
+    ]
+    metrics = [item for item in metrics if item[0] in plot_df.columns]
+    if not metrics:
+        return
+
+    fig, axes = plt.subplots(len(metrics), 1, figsize=(17, 3.4 * len(metrics)), sharex=True, squeeze=False)
+    axes = axes[:, 0]
+    plot_range = np.linspace(0.8, 12.2, 300)
+    for panel_index, (ax, (column, ylabel, panel_title)) in enumerate(zip(axes, metrics)):
+        retained_columns = ["date", column]
+        if column == "stratification_score" and "coverage" in plot_df.columns:
+            retained_columns.append("coverage")
+        metric_df = plot_df[retained_columns].copy()
+        metric_df[column] = pd.to_numeric(metric_df[column], errors="coerce")
+        metric_df = metric_df.dropna(subset=[column])
+        metric_df["month"] = metric_df["date"].dt.month.astype(int)
+        metric_df["year"] = metric_df["date"].dt.year.astype(int)
+
+        # All observations remain visible, but are deliberately unconnected.
+        ax.scatter(
+            metric_df["month"], metric_df[column], color="black", s=19,
+            alpha=0.38, edgecolor="none", zorder=3,
+        )
+
+        monthly = metric_df.groupby("month")[column].agg(
+            median="median",
+            q25=lambda values: values.quantile(0.25),
+            q75=lambda values: values.quantile(0.75),
+        ).reindex(range(1, 13))
+        smooth = {}
+        for statistic in ["median", "q25", "q75"]:
+            values = monthly[statistic].interpolate(limit_direction="both")
+            smooth[statistic] = np.interp(
+                plot_range,
+                np.arange(1, 13),
+                gaussian_filter1d(values.to_numpy(dtype=float), sigma=1.1),
+            )
+        ax.fill_between(
+            plot_range, smooth["q25"], smooth["q75"],
+            color="lightgrey", alpha=0.65, linewidth=0, zorder=1,
+        )
+        ax.plot(plot_range, smooth["median"], color="black", linewidth=3.0, zorder=2)
+
+        # Match the legacy completeness safeguard: annual extrema are shown
+        # only for years with at least seven adequately observed months.
+        eligibility_df = metric_df
+        if column == "stratification_score" and "coverage" in metric_df.columns:
+            eligibility_df = metric_df[
+                pd.to_numeric(metric_df["coverage"], errors="coerce") >= COVERAGE_THRESHOLD
+            ]
+        eligible_counts = eligibility_df.groupby("year")["month"].nunique()
+        eligible_years = set(eligible_counts[eligible_counts >= 7].index.tolist())
+        for year, annual in metric_df.groupby("year", sort=True):
+            if year not in eligible_years:
+                continue
+            max_row = annual.loc[annual[column].idxmax()]
+            min_row = annual.loc[annual[column].idxmin()]
+            ax.scatter(
+                max_row["month"], max_row[column], marker="^", color="black",
+                s=72, linewidth=0.8, zorder=5,
+            )
+            ax.scatter(
+                min_row["month"], min_row[column], marker="v", facecolor="white",
+                edgecolor="black", s=72, linewidth=1.2, zorder=5,
+            )
+        print(
+            f"      {panel_title}: annual extrema shown for "
+            f"{len(eligible_years)}/{metric_df['year'].nunique()} years (>=7 eligible months)"
+        )
+
+        ax.set_title(
+            f"{chr(65 + panel_index)}  {panel_title}", loc="left",
+            fontsize=12, fontweight="semibold", pad=7,
+        )
+        ax.set_ylabel(ylabel)
+        ax.set_xlim(0.5, 12.5)
+        ax.grid(axis="y", linestyle="--", alpha=0.30)
+
+    axes[-1].set_xticks(np.arange(1, 13))
+    axes[-1].set_xticklabels(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
+    axes[-1].set_xlabel("Calendar month")
+    fig.suptitle("Monthly physical and biochemical profiles", y=0.985, fontsize=13)
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    legend_handles = [
+        Line2D([], [], color="black", marker="o", linestyle="None", alpha=0.38, label="Observation"),
+        Line2D([], [], color="black", linewidth=3, label="Monthly median"),
+        Patch(facecolor="lightgrey", alpha=0.65, label="Monthly IQR"),
+        Line2D([], [], color="black", marker="^", linestyle="None", label="Annual maximum"),
+        Line2D([], [], marker="v", linestyle="None", markerfacecolor="white",
+               markeredgecolor="black", color="black", label="Annual minimum"),
+    ]
+    fig.legend(
+        handles=legend_handles, loc="upper left", bbox_to_anchor=(0.805, 0.92),
+        ncol=1, frameon=False,
+    )
+    fig.tight_layout(rect=[0, 0, 0.79, 0.95])
+    for suffix in [".pdf", ".png", ".svg"]:
+        fig.savefig(output_base.with_suffix(suffix), dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print("  [✓] Saved all-data monthly physical/biochemical profile")
 
 
 def plot_stratification_vs_pea_timeseries(
@@ -532,7 +937,7 @@ def plot_stratification_vs_pea_timeseries(
         strat_df["stratification_score"],
         color="black",
         s=30,
-        label="depth_centroid_distance",
+        label="Depth-centroid distance (D)",
     )
     _plot_with_gaps(
         ax_left,
@@ -540,7 +945,7 @@ def plot_stratification_vs_pea_timeseries(
         strat_df["stratification_score"],
         color="black",
     )
-    ax_left.set_ylabel("Depth centroid distance (stability index)")
+    ax_left.set_ylabel("Depth-centroid distance (D)")
     ax_left.grid(axis="y", linestyle="--", alpha=0.35)
 
     if "pea_J_m3" in pea_df.columns:
@@ -568,7 +973,8 @@ def plot_stratification_vs_pea_timeseries(
     )
 
     fig.tight_layout(rect=[0, 0, 0.85, 1])
-    fig.savefig(output_path, dpi=300, bbox_inches="tight")
+    for suffix in [".pdf", ".png", ".svg"]:
+        fig.savefig(Path(output_path).with_suffix(suffix), dpi=300, bbox_inches="tight")
     plt.close(fig)
     print("  [✓] Saved stratification vs PEA time-series plot")
 
@@ -608,8 +1014,9 @@ def plot_stratification_monthly_profile(
     plot_df["month"] = plot_df["month"].astype(int)
     plot_df["year"] = plot_df["year"].astype(int)
     
+    value_col = "stratification_score"
     pivot = (
-        plot_df.groupby(["month", "year"])["normalized_score"]
+        plot_df.groupby(["month", "year"])[value_col]
         .mean()
         .unstack(level=1)
         .reindex(range(1, 13))
@@ -643,8 +1050,6 @@ def plot_stratification_monthly_profile(
 
     ax.fill_between(plot_range, lower_curve, upper_curve, color="lightgrey", alpha=0.6, zorder=1)
     ax.plot(plot_range, mean_curve, color="black", linewidth=3, zorder=2)
-    ax.axhline(0, color="black", linewidth=2, alpha=0.6, zorder=4)
-
     extremes_df = extremes_df.copy()
     extremes_df["month"] = extremes_df["date"].map(date_to_month)
     strat_points = extremes_df[extremes_df["extreme_type"] == "max_stratification"]
@@ -662,7 +1067,7 @@ def plot_stratification_monthly_profile(
         month_val = row["month"]
         ax.scatter(
             month_val,
-            row["normalized_score"],
+            row[value_col],
             marker="^",
             color="black",
             s=200,
@@ -677,7 +1082,7 @@ def plot_stratification_monthly_profile(
         month_val = row["month"]
         ax.scatter(
             month_val,
-            row["normalized_score"],
+            row[value_col],
             marker="v",
             color="black",
             s=200,
@@ -693,42 +1098,35 @@ def plot_stratification_monthly_profile(
         fontsize=12,
     )
 
-    score_min = timeseries_df["normalized_score"].min()
-    score_max = timeseries_df["normalized_score"].max()
+    score_min = timeseries_df[value_col].min()
+    score_max = timeseries_df[value_col].max()
     y_pad = (score_max - score_min) * 0.1 if score_max != score_min else 0.5
     ax.set_ylim(score_min - y_pad, score_max + y_pad)
 
     ax.set_xlabel("Month", fontsize=14, fontweight="bold")
-    ax.set_ylabel(
-        "Stratification Index\n(−1=Mixed, 0=Intermediate, +1=Stratified)",
-        fontsize=14,
-        fontweight="bold",
-    )
+    ax.set_ylabel("Depth-centroid distance (D)", fontsize=14, fontweight="bold")
     ax.text(-0.05, 0.5, "", transform=ax.transAxes, fontsize=12, fontweight="bold", rotation=90, va="center")
     ax.grid(axis="y", linestyle="--", alpha=0.35)
-    ax.set_ylim(-1.2, 1.2)
-    ax.set_yticks([-1, -0.5, 0, 0.5, 1])
-    ax.set_yticklabels(
-        ["Max\nMixed", "Mixed", "Intermediate", "Stratified", "Max\nStratified"],
-        fontsize=11,
+    ax.tick_params(axis="y", which="major", pad=8)
+    ax.set_title(
+        "Monthly Biochemical Stratification Profile",
+        fontsize=16,
         fontweight="bold",
     )
-    ax.tick_params(axis="y", which="major", pad=8)
-    ax.set_title("Monthly Stratification Profile", fontsize=16, fontweight="bold")
 
-    point_df = pivot.stack().reset_index(name="normalized_score")
+    point_df = pivot.stack().reset_index(name=value_col)
     coverage_df = coverage_pivot.stack().reset_index(name="coverage")
     point_df = point_df.merge(coverage_df, on=["month", "year"], how="left")
 
     for _, row in point_df.iterrows():
-        if pd.isna(row["normalized_score"]) or pd.isna(row["coverage"]):
+        if pd.isna(row[value_col]) or pd.isna(row["coverage"]):
             continue
         if row["coverage"] < COVERAGE_THRESHOLD:
             continue
         color = "black" #"royalblue" if row["normalized_score"] >= 0 else "darkorange"
         ax.scatter(
             row["month"],
-            row["normalized_score"],
+            row[value_col],
             color=color,
             s=48,
             edgecolor="black",
@@ -738,7 +1136,8 @@ def plot_stratification_monthly_profile(
         )
 
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    for suffix in [".pdf", ".png", ".svg"]:
+        plt.savefig(Path(output_path).with_suffix(suffix), dpi=300, bbox_inches="tight")
     plt.close()
     print("  [✓] Saved monthly stratification profile")
 
@@ -863,25 +1262,6 @@ def main():
     timeseries_df = normalize_to_centered_scale(timeseries_df)
     timeseries_df = detect_anomalies_consensus(timeseries_df, consensus_threshold=args.consensus_threshold)
 
-    # Global thresholds based on anomaly values (apply to all rows)
-    mix_scores = timeseries_df.loc[timeseries_df["anomaly_type"] == "mixing_event", "normalized_score"]
-    strat_scores = timeseries_df.loc[timeseries_df["anomaly_type"] == "high_stratification", "normalized_score"]
-
-    mix_thresh = float(mix_scores.max()) if not mix_scores.empty else np.nan
-    strat_thresh = float(strat_scores.min()) if not strat_scores.empty else np.nan
-
-    def _global_event_type(score: float) -> str:
-        if np.isfinite(strat_thresh) and score >= strat_thresh:
-            return "high_stratification"
-        if np.isfinite(mix_thresh) and score <= mix_thresh:
-            return "mixing_event"
-        return "normal"
-
-    timeseries_df = timeseries_df.copy()
-    timeseries_df["global_event_type"] = timeseries_df["normalized_score"].apply(_global_event_type)
-    timeseries_df["global_mixing_threshold"] = mix_thresh
-    timeseries_df["global_strat_threshold"] = strat_thresh
-
     print("\n[5/5] Annual extremes + monthly profile...")
     extremes_df = identify_annual_extremes(timeseries_df, metadata, args.year_col)
 
@@ -914,6 +1294,59 @@ def main():
             pea_df=pea_ts,
             output_path=out_dir / "stratification_vs_pea_timeseries.pdf",
         )
+        combined_df = _combine_stratification_and_physical_metrics(timeseries_df, pea_ts)
+        combined_out = combined_df.rename(
+            columns={
+                "stratification_score": "depth_centroid_distance",
+                "normalized_score": "normalized_depth_centroid_distance",
+            }
+        )
+        combined_out.to_csv(
+            out_dir / "stratification_physical_biochem_timeseries.tsv",
+            sep="\t",
+            index=False,
+        )
+        plot_physical_biochem_timeseries(
+            combined_df=combined_df,
+            output_base=out_dir / "stratification_physical_biochem_timeseries",
+            title="Physical stratification and biochemical depth separation — all available data",
+        )
+        plot_physical_biochem_timeseries(
+            combined_df=combined_df,
+            output_base=out_dir / "stratification_physical_biochem_timeseries_yearly_month_aligned",
+            title="Physical stratification and biochemical depth separation — yearly month-aligned, all data",
+            years_per_panel=1,
+            align_months=True,
+        )
+        plot_physical_biochem_monthly_profile(
+            combined_df=combined_df,
+            output_base=out_dir / "stratification_physical_biochem_monthly_profile_all_data",
+        )
+        complete_columns = [
+            "stratification_score",
+            "pea_J_m3",
+            "pea_upper_J_m3",
+            "pea_lower_J_m3",
+        ]
+        if all(col in combined_df.columns for col in complete_columns):
+            complete_source = combined_df.copy()
+            complete_source["_source_order"] = np.arange(len(complete_source))
+            complete_df = complete_source.dropna(subset=complete_columns).copy()
+            plot_physical_biochem_timeseries(
+                combined_df=complete_df,
+                output_base=out_dir / "stratification_physical_biochem_timeseries_complete_cases",
+                title="Physical stratification and biochemical depth separation — complete cases",
+            )
+            plot_physical_biochem_timeseries(
+                combined_df=complete_df,
+                output_base=out_dir / "stratification_physical_biochem_timeseries_yearly_month_aligned_complete_cases",
+                title="Physical stratification and biochemical depth separation — yearly month-aligned, complete cases",
+                years_per_panel=1,
+                align_months=True,
+            )
+            print(
+                f"  [i] Complete-case time series retained {len(complete_df)}/{len(combined_df)} cruises"
+            )
 
     print("\n" + "=" * 70)
     print("DONE")

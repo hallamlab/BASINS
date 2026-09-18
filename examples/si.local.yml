@@ -1,16 +1,21 @@
 paths:
-  output_dir: /home/ryan/data/biochem/basin_output2
-  runtime_dir: /home/ryan/data/biochem/basin_output2/.basin
+  output_dir: /home/ryan/data/biochem/basin_output
+  runtime_dir: /home/ryan/data/biochem/basin_output/.basin
   keep_runtime_dir: true
 
 resources:
   threads: 25
+  # Automatically caps native BLAS/OpenMP thread pools inside every task.
+  math_threads: 4
+  # Caps all concurrently executing Nextflow tasks for this shared server.
+  max_concurrent_tasks: 6
 
 biochem:
   enabled: true
   table_a: /home/ryan/data/biochem/refs/SI_JA_Compiled_Geochem_Dec_09_Outlier_RM.csv
   table_b: /home/ryan/data/biochem/refs/SI_JA_Compiled_CTD_Data_Dec_18_2025_Outlier_RM.csv
-  output_root: biochem_pipeline
+  # Do not propagate CTD fields across depth differences greater than 10 m.
+  ctd_max_depth_diff_m: 10.0
   cleaned_density_filename: 02_oxygen_best_available_density_RJM.tsv
   clean_keep_cols:
     - cruise_year_month_depth
@@ -30,9 +35,9 @@ biochem:
     - Temperature
     - Salinity
     - Oxygen
-    - Density
-    - Fe
+    - Iron
     - Dimethyl Sulfide
+    - Density
   clean_drop_cols: []
   clean_rename_map:
     PO4: Phosphate
@@ -43,11 +48,110 @@ biochem:
     H2S: Hydrogen Sulfide
     N2O: Nitrous Oxide
     CH4: Methane
+    DMS: Dimethyl Sulfide
+    Fe: Iron
     Oxygen_best_available: Oxygen
     density_kg_m3: Density
-  feature_cols: Oxygen,Nitrate,Nitrite,Nitrous Oxide,Ammonium,Hydrogen Sulfide,Methane,Phosphate,Silicate,Temperature,Salinity,Density,Fe,Dimethyl Sulfide
+  feature_cols: Oxygen,Nitrate,Nitrite,Nitrous Oxide,Ammonium,Hydrogen Sulfide,Methane,Phosphate,Silicate,Temperature,Salinity,Density,Iron,Dimethyl Sulfide
+  missingness_cutoff: 0.20
+  missingness_sensitivity_enabled: false
+  missingness_sensitivity_thresholds: [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
+  missingness_sensitivity_pc_parallel_replicates: 100
+  missingness_sensitivity_pc_stability_replicates: 100
+  missingness_sensitivity_gmm_stability_replicates: 100
+  missingness_sensitivity_min_gmm_ari: 0.70
   gmm_k: auto
-  eof_pcs: 1,2,4
+  eof_pcs: 1,2
+  eof_k_min: 2
+  eof_k_max: 4
+  eof_covariance_type: tied
+  eof_stability_min_ari: 0.50
+  eof_assignment_prob_threshold: 0.80
+  eof_min_cluster_frac: 0.10
+  eof_min_cluster_n: 5
+  eof_baseline_months: 24
+  eof_baseline_min_cruises: 5
+  pea_bootstrap_iterations: 500
+  pea_random_state: 42
+  physical_regime_k_max: 6
+  deep_intrusion_quantile: 0.90
+  oxygen_low_compartment_max: 90.0
+  oxygen_intrusion_bottom_n: 3
+  oxygen_intrusion_onset_threshold: 4.5
+  oxygen_intrusion_persistence_threshold: 4.5
+  oxygen_intrusion_end_consecutive: 2
+  renewal_nitrate_col: Nitrate
+  renewal_nitrate_bottom_n: 3
+  renewal_nitrate_min_depths: 2
+  renewal_nitrate_detection_limit: 0.0
+  renewal_bridge_enabled: true
+  renewal_bridge_max_cruises: 2
+  renewal_bridge_max_days: 150
+
+continuous_sections:
+  enabled: true
+  output_dir: env_continuous_sections
+  variables: [Oxygen, Nitrate, Nitrite, Nitrous Oxide, Ammonium, Hydrogen Sulfide, Methane, Phosphate, Silicate, Temperature, Salinity, Density, Iron, Dimethyl Sulfide]
+  date_col: date
+  depth_col: Depth_anchored
+  maximum_depth_m: 210
+  depth_step_m: 1
+  time_step_days: 7
+  # Cells farther than either support limit from an observed date or depth are masked.
+  max_time_support_days: 90
+  max_depth_support_m: 30
+  minimum_samples: 4
+  levels: 64
+  formats: [pdf, png, svg]
+
+gapseq_media:
+  enabled: true
+  nutrients_tsv: /data/home/ryan/miniforge3/envs/gapseq/share/gapseq/dat/nutrients.tsv
+  template:
+  transform_method: ordinal
+  detection_limit: 0.0
+  min_effective_n: 5.0
+  depth_baseline_m: [100, 150, 200]
+
+genome_modeling:
+  enabled: true
+  genomes_manifest: si.sag_xpg_genomes.tsv
+  genome_metadata_tsv: /home/ryan/data/Metagenomes/genomes/genome_quality_annotated.tsv
+  abundance_tsv: /home/ryan/data/SABER_SI_results/genome_qc_results/kegg-nsc_output_SAG_and_SAG-xPG/paired_quant/metag_quant/genome_abundance_long.tsv
+  abundance_sample_col: sample_id
+  abundance_genome_col: genome_id
+  abundance_value_col: fpkm
+  abundance_normalization: provided_fpkm
+  # SeqKit is unnecessary because the configured abundance values are pre-normalized.
+  abundance_seqkit_tsv:
+  abundance_seqkit_file_col: file
+  abundance_seqkit_count_col: num_seqs
+  transcript_abundance_tsv: /home/ryan/data/SABER_SI_results/genome_qc_results/kegg-nsc_output_SAG_and_SAG-xPG/paired_quant/metat_quant/genome_abundance_long.tsv
+  transcript_abundance_sample_col: sample_id
+  transcript_abundance_genome_col: genome_id
+  transcript_abundance_value_col: tpm
+  transcript_abundance_normalization: provided_tpm
+  # SeqKit is unnecessary because the configured expression values are pre-normalized.
+  transcript_abundance_seqkit_tsv:
+  transcript_abundance_seqkit_file_col: file
+  transcript_abundance_seqkit_count_col: num_seqs
+  agreement_permutations: 10000
+  agreement_bootstrap_iterations: 5000
+  agreement_random_state: 42
+  # Top-growth fraction used to validate abundance-defined expected hybrid niches.
+  expected_compartment_top_fraction: 0.25
+  taxonomy: auto
+  aligner: diamond
+  mmseqs2_bin:
+  cpus_per_genome: 8
+  max_parallel_genomes: 2
+  solver: glpk
+  fraction_of_optimum: 1.0
+  flux_threshold: 1.0e-9
+  supplement_max_flux: 10.0
+  run_fva: true
+  run_counterfactuals: true
+  counterfactual_compounds: all
 
 master_summary:
   enabled: true

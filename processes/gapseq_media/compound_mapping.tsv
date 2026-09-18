@@ -1,0 +1,9 @@
+chemistry_column	compound_id	compound_name	measurement_unit
+Oxygen	cpd00007	O2	uM
+Phosphate	cpd00009	Phosphate	uM
+Ammonium	cpd00013	Ammonium	uM
+Nitrite	cpd00075	Nitrite	uM
+Nitrate	cpd00209	Nitrate	uM
+Hydrogen Sulfide	cpd00239	H2S	uM
+Nitrous Oxide	cpd00659	Nitrous oxide	uM
+Methane	cpd01024	Methane	uM

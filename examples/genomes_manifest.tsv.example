@@ -1,0 +1,5 @@
+label	filepath
+MAG_001	/data/home/ryan/data/genomes/MAG_001.fna
+MAG_002	/data/home/ryan/data/genomes/MAG_002.faa.gz
+# One row can expand a collection; "auto" derives labels from filenames.
+auto	/data/home/ryan/data/genomes/*.qced.faa

@@ -13,12 +13,12 @@ SPEC.loader.exec_module(MODULE)
 
 
 class BasinOutputLayoutTests(unittest.TestCase):
-    def test_publish_organizes_modules_report_and_legacy_links(self):
+    def test_publish_organizes_modules_and_report(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             staging = root / "staging"
             output = root / "published"
-            scientific = staging / "biochem_pipeline"
+            scientific = staging
             gmm = scientific / "env_compartments_gmm" / "tables"
             processing = scientific / "biochem_processing"
             master = scientific / "master_summary"
@@ -37,13 +37,9 @@ class BasinOutputLayoutTests(unittest.TestCase):
             self.assertTrue((output / "modules" / "gmm_compartments" / "tables" / "compartments_assignments_smoothed.csv").is_file())
             self.assertTrue((output / "summary" / "tables" / "basin_run_overview.tsv").is_file())
             self.assertTrue((output / "summary" / "report" / "BASIN_run_report.html").is_file())
-            legacy = output / "biochem_pipeline" / "biochem_processing" / "02_oxygen_best_available_density_RJM.tsv"
-            self.assertTrue(legacy.is_symlink())
-            self.assertEqual("Sample\tOxygen\na\t1\n", legacy.read_text())
             with (output / "summary" / "tables" / "module_output_manifest.tsv").open() as handle:
                 rows = list(csv.DictReader(handle, delimiter="\t"))
             self.assertTrue(any(row["module"] == "gmm_compartments" for row in rows))
-
 
 if __name__ == "__main__":
     unittest.main()

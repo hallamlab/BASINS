@@ -1,0 +1,8 @@
+paths:
+  output_dir: /tmp/basins_disabled_pipeline_test
+biochem:
+  enabled: false
+gapseq_media:
+  enabled: false
+master_summary:
+  enabled: false

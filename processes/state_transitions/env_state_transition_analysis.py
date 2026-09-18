@@ -74,12 +74,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import install_publication_style
+
+install_publication_style()
 
 
 # -----------------------------
@@ -626,7 +634,7 @@ def plot_transition_heatmap(T: np.ndarray, title: str, outpath: str, cmap: str) 
     plt.ylabel("current state")
     plt.title(title)
     plt.tight_layout()
-    plt.savefig(outpath, dpi=200)
+    save_figure_all_formats(plt.gcf(), outpath, dpi=200)
     plt.close()
 
 
@@ -638,7 +646,7 @@ def plot_metric_over_time(labels: List[str], y: np.ndarray, title: str, ylabel: 
     plt.ylabel(ylabel)
     plt.title(title)
     plt.tight_layout()
-    plt.savefig(outpath, dpi=200)
+    save_figure_all_formats(plt.gcf(), outpath, dpi=200)
     plt.close()
 
 
@@ -664,7 +672,7 @@ def plot_dominant_timeline(labels: List[str], dom: np.ndarray, title: str, outpa
     plt.xticks(x, labels, rotation=90)
     plt.title(title)
     plt.tight_layout()
-    plt.savefig(outpath, dpi=200)
+    save_figure_all_formats(plt.gcf(), outpath, dpi=200)
     plt.close()
 
 def _add_panel_dangling_trend_hints(
@@ -1053,7 +1061,7 @@ def plot_three_metric_compare(
                 )
 
             plt.tight_layout(rect=[0, 0, 0.90, 0.97])
-            plt.savefig(outpath, dpi=200, bbox_inches="tight")
+            save_figure_all_formats(plt.gcf(), outpath, dpi=200, bbox_inches="tight")
             plt.close(fig)
             return
 
@@ -1232,7 +1240,7 @@ def plot_three_metric_compare(
         )
 
     plt.tight_layout(rect=[0, 0, 0.90, 0.97])
-    plt.savefig(outpath, dpi=200, bbox_inches="tight")
+    save_figure_all_formats(plt.gcf(), outpath, dpi=200, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1365,7 +1373,7 @@ def plot_coupling_heatmap(C: np.ndarray, order: np.ndarray, state_names: List[st
     plt.yticks(np.arange(len(names2)), names2, fontsize=7)
     plt.title(title)
     plt.tight_layout()
-    plt.savefig(outpath, dpi=200)
+    save_figure_all_formats(plt.gcf(), outpath, dpi=200)
     plt.close()
 
 
@@ -1588,8 +1596,13 @@ def transition_agreement_tables(
     plt.title("Pairwise disagreement per cruise (lower = more agreement)")
     plt.legend(loc="upper left", frameon=False)
     plt.tight_layout()
-    plt.savefig(os.path.join(plots_dir, "braycurtis_compare_pairwise.png") if cfg.changepoint_metric == "braycurtis"
-                else os.path.join(plots_dir, "metric_compare_pairwise.png"), dpi=200)
+    save_figure_all_formats(
+        plt.gcf(),
+        os.path.join(plots_dir, "braycurtis_compare_pairwise.png")
+        if cfg.changepoint_metric == "braycurtis"
+        else os.path.join(plots_dir, "metric_compare_pairwise.png"),
+        dpi=200,
+    )
     plt.close()
 
     print(

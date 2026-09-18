@@ -41,6 +41,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from typing import List, Tuple, Optional, Dict
 
 import numpy as np
@@ -56,6 +58,13 @@ try:
 except Exception:
     plt = None
     _HAVE_MPL = False
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import install_publication_style
+
+if _HAVE_MPL:
+    install_publication_style()
 
 
 # -----------------------------
@@ -101,6 +110,8 @@ def parse_args() -> argparse.Namespace:
                     help="Median ARI threshold for feasible K (default 0.70).")
     ap.add_argument("--min-cluster-frac", type=float, default=0.04,
                     help="Minimum allowed fraction for the smallest component (default 0.04).")
+    ap.add_argument("--min-cluster-n", type=int, default=5,
+                    help="Minimum allowed number of cruises in every component (default 5).")
     ap.add_argument("--select-by", choices=["icl", "bic", "cv"], default="icl",
                     help="Primary metric to select K among feasible values (default icl).")
     ap.add_argument("--select-delta", type=float, default=5.0,
@@ -254,7 +265,7 @@ def block_bootstrap_stability(
 def _fail_reasons_row(row: pd.Series) -> str:
     reasons = []
     if not bool(row.get("passes_min_cluster", False)):
-        reasons.append("min_cluster_frac")
+        reasons.append("min_cluster_size")
     if not bool(row.get("passes_stability", False)):
         reasons.append("stability")
     if pd.isna(row.get("stability_median_ARI", np.nan)) or int(row.get("stability_n_reps", 0)) <= 0:
@@ -265,7 +276,10 @@ def _fail_reasons_row(row: pd.Series) -> str:
 
 def select_k(metrics: pd.DataFrame, args: argparse.Namespace) -> Tuple[int, pd.DataFrame]:
     m = metrics.copy()
-    m["passes_min_cluster"] = m["min_cluster_frac"] >= float(args.min_cluster_frac)
+    m["passes_min_cluster"] = (
+        (m["min_cluster_frac"] >= float(args.min_cluster_frac))
+        & (m["min_cluster_n"] >= int(args.min_cluster_n))
+    )
     m["passes_stability"] = m["stability_median_ARI"] >= float(args.stability_min_ari)
     m.loc[m["stability_n_reps"].fillna(0).astype(int) <= 0, "passes_stability"] = False
     m["feasible"] = m["passes_min_cluster"] & m["passes_stability"]
@@ -277,7 +291,7 @@ def select_k(metrics: pd.DataFrame, args: argparse.Namespace) -> Tuple[int, pd.D
         m["SELECTED"] = False
         decision_cols = [
             "K", "AIC", "BIC", "ICL", "mean_resp_entropy",
-            "min_cluster_frac",
+            "min_cluster_n", "min_cluster_frac",
             "CV_loglik_mean", "CV_loglik_std",
             "stability_median_ARI", "stability_mean_ARI", "stability_n_reps",
             "passes_min_cluster", "passes_stability", "feasible", "within_delta",
@@ -310,7 +324,7 @@ def select_k(metrics: pd.DataFrame, args: argparse.Namespace) -> Tuple[int, pd.D
 
     decision_cols = [
         "K", "AIC", "BIC", "ICL", "mean_resp_entropy",
-        "min_cluster_frac",
+        "min_cluster_n", "min_cluster_frac",
         "CV_loglik_mean", "CV_loglik_std",
         "stability_median_ARI", "stability_mean_ARI", "stability_n_reps",
         "passes_min_cluster", "passes_stability", "feasible", "within_delta",
@@ -325,7 +339,7 @@ def save_fig(path: str) -> None:
     if not _HAVE_MPL:
         return
     plt.tight_layout()
-    plt.savefig(path, dpi=200)
+    save_figure_all_formats(plt.gcf(), path, dpi=200)
     plt.close()
 
 
@@ -380,6 +394,18 @@ def plot_min_cluster_frac(metrics: pd.DataFrame, outpath: str, threshold: float)
     plt.xlabel("K")
     plt.ylabel("Minimum component fraction")
     plt.title("EOF state selection: smallest cluster fraction vs K")
+    save_fig(outpath)
+
+
+def plot_min_cluster_n(metrics: pd.DataFrame, outpath: str, threshold: int) -> None:
+    if not _HAVE_MPL:
+        return
+    plt.figure(figsize=(8, 4.5))
+    plt.plot(metrics["K"], metrics["min_cluster_n"], marker="o")
+    plt.axhline(y=threshold, linestyle="--", linewidth=1.0)
+    plt.xlabel("K")
+    plt.ylabel("Cruises in smallest group")
+    plt.title("EOF state selection: smallest group size vs K")
     save_fig(outpath)
 
 
@@ -706,6 +732,18 @@ def main() -> None:
     os.makedirs(plots_dir, exist_ok=True)
     os.makedirs(audit_dir, exist_ok=True)
 
+    if not args.sticky_smoothing:
+        for stale in (
+            os.path.join(args.outdir, "cruise_states_smoothed.tsv"),
+            os.path.join(args.outdir, "sticky_smoothing_config.json"),
+            os.path.join(audit_dir, "audit_order_smoothed.tsv"),
+            os.path.join(audit_dir, "audit_transitions_smoothed.tsv"),
+            os.path.join(audit_dir, "audit_smoothing_effect.tsv"),
+            os.path.join(audit_dir, "audit_smoothing_effect_summary.tsv"),
+        ):
+            if os.path.isfile(stale):
+                os.remove(stale)
+
     with open(os.path.join(args.outdir, "run_config.json"), "w") as f:
         json.dump(vars(args), f, indent=2)
 
@@ -762,6 +800,7 @@ def main() -> None:
             counts = np.bincount(hard, minlength=int(k)).astype(float)
             fracs = counts / counts.sum()
             min_frac = float(fracs.min()) if len(fracs) else np.nan
+            min_n = int(counts.min()) if len(counts) else 0
 
             cv_mean = np.nan
             cv_std = np.nan
@@ -802,6 +841,7 @@ def main() -> None:
                     "ICL": icl,
                     "entropy_total": ent_total,
                     "mean_resp_entropy": ent_mean,
+                    "min_cluster_n": min_n,
                     "min_cluster_frac": min_frac,
                     "CV_loglik_mean": cv_mean,
                     "CV_loglik_std": cv_std,
@@ -828,6 +868,11 @@ def main() -> None:
             metrics,
             os.path.join(plots_dir, "selectk_cluster_sizes.png"),
             threshold=float(args.min_cluster_frac),
+        )
+        plot_min_cluster_n(
+            metrics,
+            os.path.join(plots_dir, "selectk_cluster_counts.png"),
+            threshold=int(args.min_cluster_n),
         )
         plot_entropy(metrics, os.path.join(plots_dir, "selectk_entropy.png"))
         if not _HAVE_MPL:
@@ -863,8 +908,12 @@ def main() -> None:
         )
 
     # Base responsibilities + assignments
-    probs_base = gmm.predict_proba(X)
-    labels_base = gmm.predict(X)  # 0..K-1
+    probs_raw = gmm.predict_proba(X)
+    # Canonical neutral numbering: low-to-high PC1 center, then PC2. This keeps
+    # group labels reproducible without attaching an environmental meaning.
+    center_order = np.lexsort(tuple(gmm.means_[:, j] for j in range(gmm.means_.shape[1] - 1, -1, -1)))
+    probs_base = probs_raw[:, center_order]
+    labels_base = np.argmax(probs_base, axis=1)
 
     # Always write base
     write_states(
@@ -878,13 +927,24 @@ def main() -> None:
     # SelectK-style assignment table + component summary
     assign = df.copy()
     assign["component"] = labels_base.astype(int)
+    assign["cruise_group"] = [f"cruise_group_{x + 1}" for x in labels_base]
     assign["max_prob"] = probs_base.max(axis=1).astype(float)
     assign["resp_entropy"] = (
         -np.sum(np.clip(probs_base, 1e-12, 1.0) * np.log(np.clip(probs_base, 1e-12, 1.0)), axis=1)
     ).astype(float)
+    if int(k_used) > 1:
+        assign["resp_entropy_normalized"] = assign["resp_entropy"] / np.log(int(k_used))
+    else:
+        assign["resp_entropy_normalized"] = 0.0
+    assign["assignment_uncertain"] = assign["max_prob"] < float(args.lowconf_maxprob)
     for j in range(probs_base.shape[1]):
         assign[f"resp_{j}"] = probs_base[:, j]
     assign.to_csv(os.path.join(tables_dir, "gmm_selected_assignments.tsv"), sep="\t", index=False)
+
+    centers = pd.DataFrame(gmm.means_[center_order], columns=[f"center_{pc}" for pc in pcs])
+    centers.insert(0, "cruise_group", [f"cruise_group_{i + 1}" for i in range(int(k_used))])
+    centers.insert(1, "component_original", center_order)
+    centers.to_csv(os.path.join(tables_dir, "cruise_group_eof_centers.tsv"), sep="\t", index=False)
 
     comp_rows = []
     for c in range(int(k_used)):

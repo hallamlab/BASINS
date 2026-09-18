@@ -79,7 +79,7 @@ Stage 1: Fixed-K GMM (core)
 ---------------------------
 A scikit-learn GaussianMixture is fit on Z_model with parameters:
 - K (--K, default 5)
-- covariance_type (--covariance-type: full|tied|diag|spherical; default full)
+- covariance_type (--covariance-type: full|tied|diag|spherical; default tied)
 - n_init (--n-init, default 30)
 - max_iter (--max-iter, default 1000)
 - reg_covar (--reg-covar, default 1e-6)
@@ -255,12 +255,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import install_publication_style
+
+install_publication_style()
 
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
@@ -362,7 +370,7 @@ def parse_args() -> RunConfig:
 
     ap.add_argument("--K", type=int, required=True, help="Final number of components.")
     ap.add_argument("--covariance-type", choices=["full", "tied", "diag", "spherical"], default="tied",
-                    help="GMM covariance type (default full).")
+                    help="GMM covariance type (default tied).")
     ap.add_argument("--n-init", type=int, default=30, help="GMM n_init (default 30).")
     ap.add_argument("--max-iter", type=int, default=1000, help="GMM max_iter (default 1000).")
     ap.add_argument("--random-state", type=int, default=42, help="Random state (default 42).")
@@ -483,7 +491,7 @@ def ensure_dirs(outdir: str) -> Tuple[str, str]:
 
 def save_fig(path: str) -> None:
     plt.tight_layout()
-    plt.savefig(path, dpi=200)
+    save_figure_all_formats(plt.gcf(), path, dpi=200)
     plt.close()
 
 

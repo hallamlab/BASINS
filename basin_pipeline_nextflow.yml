@@ -9,14 +9,19 @@ paths:
 
 resources:
   threads: 12
+  # Automatically caps native BLAS/OpenMP thread pools inside every task.
+  math_threads: 4
+  # Optional total Nextflow task cap; defaults to floor(threads/math_threads).
+  # max_concurrent_tasks: 3
 
 biochem:
   enabled: true
   table_a: /abs/path/SI_JA_Compiled_Geochem_Dec_09_Outlier_RM.csv
   table_b: /abs/path/SI_JA_Compiled_CTD_Data_Dec_18_2025_Outlier_RM.csv
-  # Optional namespace below publication staging. `biochem_pipeline` preserves
-  # the historical BASIN/ASPIRE integration path via compatibility links.
-  output_root: biochem_pipeline
+  # Nearest CTD matches farther than this are left missing.
+  ctd_max_depth_diff_m: 10.0
+  # Optional namespace below publication staging. Normally leave empty.
+  output_root:
   cleaned_density_filename: 02_oxygen_best_available_density_RJM.tsv
   clean_keep_cols:
     - cruise_year_month_depth
@@ -37,7 +42,7 @@ biochem:
     - Salinity
     - Oxygen
     - Density
-    - Fe
+    - Iron
     - Dimethyl Sulfide
   clean_drop_cols: []
   clean_rename_map:
@@ -49,11 +54,136 @@ biochem:
     H2S: Hydrogen Sulfide
     N2O: Nitrous Oxide
     CH4: Methane
+    DMS: Dimethyl Sulfide
+    Fe: Iron
     Oxygen_best_available: Oxygen
     density_kg_m3: Density
-  feature_cols: Oxygen,Nitrate,Nitrite,Nitrous Oxide,Ammonium,Hydrogen Sulfide,Methane,Phosphate,Silicate,Temperature,Salinity,Density,Fe,Dimethyl Sulfide
+  feature_cols: Oxygen,Nitrate,Nitrite,Nitrous Oxide,Ammonium,Hydrogen Sulfide,Methane,Phosphate,Silicate,Temperature,Salinity,Density,Iron,Dimethyl Sulfide
+  # Fixed production cutoff used when sensitivity selection is disabled.
+  missingness_cutoff: 0.20
+  # When enabled, the selected cutoff from this sweep replaces missingness_cutoff downstream.
+  missingness_sensitivity_enabled: false
+  missingness_sensitivity_thresholds: [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
+  missingness_sensitivity_pc_parallel_replicates: 100
+  missingness_sensitivity_pc_stability_replicates: 100
+  missingness_sensitivity_gmm_stability_replicates: 100
+  missingness_sensitivity_min_gmm_ari: 0.70
   gmm_k: auto
-  eof_pcs: 1,2,4
+  eof_pcs: 1,2
+  eof_k_min: 2
+  eof_k_max: 4
+  eof_covariance_type: tied
+  eof_stability_min_ari: 0.50
+  eof_assignment_prob_threshold: 0.80
+  eof_min_cluster_frac: 0.10
+  eof_min_cluster_n: 5
+  eof_baseline_months: 24
+  eof_baseline_min_cruises: 5
+  # Dynamic three-state PEA classification using ordered one-dimensional
+  # k-means with midpoint class boundaries.
+  pea_bootstrap_iterations: 500
+  pea_random_state: 42
+  # Evaluate 1..K components while retaining K=3 for mixed/intermediate/stratified comparison.
+  physical_regime_k_max: 6
+  # Intrusion requires a residual above this quantile relative to the centered
+  # three-calendar-month median. Consecutive cruises may remain intrusions.
+  deep_intrusion_quantile: 0.90
+  oxygen_low_compartment_max: 90.0
+  oxygen_intrusion_bottom_n: 3
+  oxygen_intrusion_onset_threshold: 4.5
+  oxygen_intrusion_persistence_threshold: 4.5
+  oxygen_intrusion_end_consecutive: 2
+  # Oxygen identifies candidate events; nitrate qualifies renewal and
+  # maintains post-renewal after oxygen has declined. Zero is a measured
+  # non-detect, while negative/missing nitrate is not measured.
+  renewal_nitrate_col: Nitrate
+  renewal_nitrate_bottom_n: 3
+  renewal_nitrate_min_depths: 2
+  renewal_nitrate_detection_limit: 0.0
+  # Infer post-renewal only for short insufficient-coverage gaps bracketed by
+  # nitrate-supported cruises from the same event. Measured non-detects and
+  # O2-only/nitrate-unresolved anomalies are never bridged.
+  renewal_bridge_enabled: true
+  renewal_bridge_max_cruises: 2
+  renewal_bridge_max_days: 150
+
+continuous_sections:
+  enabled: true
+  output_dir: env_continuous_sections
+  variables: [Oxygen, Nitrate, Nitrite, Nitrous Oxide, Ammonium, Hydrogen Sulfide, Methane, Phosphate, Silicate, Temperature, Salinity, Density, Iron, Dimethyl Sulfide]
+  date_col: date
+  depth_col: Depth_anchored
+  maximum_depth_m: 210
+  depth_step_m: 1
+  time_step_days: 7
+  max_time_support_days: 90
+  max_depth_support_m: 30
+  minimum_samples: 4
+  levels: 64
+  formats: [pdf, png, svg]
+
+gapseq_media:
+  enabled: false
+  nutrients_tsv: /abs/path/miniforge3/envs/gapseq/share/gapseq/dat/nutrients.tsv
+  # Optional shared basal-medium CSV. When empty, BASINS creates and reports
+  # its bundled minimal glucose basal medium.
+  template:
+  # Defaults to processes/gapseq_media/compound_mapping.tsv when omitted.
+  compound_mapping:
+  transform_method: ordinal
+  detection_limit: 0.0
+  min_effective_n: 1.0
+  # Optional conventional depth baselines for metabolic comparison.
+  depth_baseline_m: []
+
+genome_modeling:
+  enabled: false
+  # CSV or TSV with exactly two columns: label, filepath.
+  genomes_manifest: /abs/path/genomes_manifest.tsv
+  # Optional genome taxonomy table. Recognized ranks are Domain through Species.
+  genome_metadata_tsv:
+  # Optional long-format genome recruitment table used to compare observed
+  # abundance positions with model-predicted metabolic positions.
+  abundance_tsv:
+  abundance_sample_col: sample
+  abundance_genome_col: genome
+  abundance_value_col: read_count
+  # Use provided_fpkm or provided_tpm for an already normalized value column.
+  # auto requires a paired-end SeqKit table and uses input-fragment FPM.
+  abundance_normalization: auto
+  abundance_seqkit_tsv:
+  abundance_seqkit_file_col: file
+  abundance_seqkit_count_col: num_seqs
+  # Optional metatranscriptome recruitment and matching SeqKit library table.
+  transcript_abundance_tsv:
+  transcript_abundance_sample_col: sample
+  transcript_abundance_genome_col: genome
+  transcript_abundance_value_col: read_count
+  transcript_abundance_normalization: auto
+  transcript_abundance_seqkit_tsv:
+  transcript_abundance_seqkit_file_col: file
+  transcript_abundance_seqkit_count_col: num_seqs
+  agreement_permutations: 10000
+  agreement_bootstrap_iterations: 5000
+  agreement_random_state: 42
+  # Top fraction of unique hybrid recipes used for expected-niche validation.
+  expected_compartment_top_fraction: 0.25
+  taxonomy: auto
+  # blast, diamond, or mmseqs2. MMseqs2 remains installed and selectable.
+  aligner: diamond
+  # Required only with aligner: mmseqs2 because its current Conda dependencies
+  # conflict with the gapseq 2.1.0 R/libSBML environment.
+  mmseqs2_bin:
+  cpus_per_genome: 8
+  max_parallel_genomes: 2
+  solver: glpk
+  fraction_of_optimum: 1.0
+  flux_threshold: 1.0e-9
+  # Non-limiting bound for genome-specific auxotrophy supplements.
+  supplement_max_flux: 10.0
+  run_fva: true
+  run_counterfactuals: true
+  counterfactual_compounds: all
 
 master_summary:
   enabled: true
@@ -65,6 +195,7 @@ environments:
   biochem_strat_metrics: processes/shared_envs/biochem.yml
   biochem_custom_clean: processes/shared_envs/biochem.yml
   biochem_eigenvectors: processes/shared_envs/biochem.yml
+  biochem_continuous_sections: processes/shared_envs/biochem.yml
   biochem_selectk: processes/shared_envs/biochem.yml
   biochem_gmm: processes/shared_envs/biochem.yml
   biochem_o2_soft: processes/shared_envs/biochem.yml
@@ -79,4 +210,7 @@ environments:
   biochem_eof_state_cluster: processes/shared_envs/biochem.yml
   biochem_eof_mode_plots: processes/shared_envs/biochem.yml
   biochem_within_gmm: processes/shared_envs/biochem.yml
+  biochem_gapseq_media: processes/shared_envs/biochem.yml
+  genome_modeling: processes/shared_envs/gapseq_modeling.yml
+  genome_simulation: processes/shared_envs/cobrapy_simulation.yml
   master_summary: processes/shared_envs/biochem.yml

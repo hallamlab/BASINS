@@ -71,11 +71,19 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import sys
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import install_publication_style
+
+install_publication_style()
 
 
 FEATURE_RE = re.compile(r"^(?P<var>.+)@(?P<depth>-?\d+(\.\d+)?)$")
@@ -213,8 +221,15 @@ def write_top_features(load_df: pd.DataFrame, eof_col: str, out_path: str, top_n
     out.to_csv(out_path, sep="\t", index=False)
 
 
-def plot_heatmap(A: np.ndarray, var_names: List[str], depth_grid: np.ndarray, title: str, out_png: str, out_pdf: str,
-                 figsize: Tuple[float, float], dpi: int) -> None:
+def plot_heatmap(
+    A: np.ndarray,
+    var_names: List[str],
+    depth_grid: np.ndarray,
+    title: str,
+    out_path: str,
+    figsize: Tuple[float, float],
+    dpi: int,
+) -> tuple[Path, ...]:
     fig = plt.figure(figsize=figsize)
     ax = plt.gca()
 
@@ -253,9 +268,9 @@ def plot_heatmap(A: np.ndarray, var_names: List[str], depth_grid: np.ndarray, ti
     cbar.set_label("EOF loading (signed)")
 
     plt.tight_layout()
-    fig.savefig(out_png, dpi=dpi)
-    fig.savefig(out_pdf)
+    outputs = save_figure_all_formats(fig, out_path, dpi=dpi)
     plt.close(fig)
+    return outputs
 
 
 def main() -> None:
@@ -305,15 +320,12 @@ def main() -> None:
         else:
             title = f"{eof} loadings (variable × depth) — explained variance: {100.0*ev:.1f}%"
 
-        out_png = os.path.join(args.outdir, f"eof_mode_{eof}.png")
-        out_pdf = os.path.join(args.outdir, f"eof_mode_{eof}.pdf")
-        plot_heatmap(
+        plot_outputs = plot_heatmap(
             A=A,
             var_names=var_names,
             depth_grid=depth_grid,
             title=title,
-            out_png=out_png,
-            out_pdf=out_pdf,
+            out_path=os.path.join(args.outdir, f"eof_mode_{eof}"),
             figsize=figsize,
             dpi=args.dpi,
         )
@@ -321,8 +333,8 @@ def main() -> None:
         out_top = os.path.join(args.outdir, f"eof_mode_{eof}_top_features.tsv")
         write_top_features(load_df, eof, out_top, top_n=args.top_n)
 
-        print(f"Wrote: {out_png}")
-        print(f"Wrote: {out_pdf}")
+        for output in plot_outputs:
+            print(f"Wrote: {output}")
         print(f"Wrote: {out_top}")
 
 

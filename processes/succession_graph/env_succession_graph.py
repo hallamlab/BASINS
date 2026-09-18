@@ -35,12 +35,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import install_publication_style
+
+install_publication_style()
 
 
 # -----------------------------
@@ -404,7 +412,7 @@ def plot_top_successor_bars(
     fig.suptitle(title, fontsize=12)
     fig.supxlabel("P(next state | current state)")
     fig.tight_layout()
-    fig.savefig(outpath, dpi=220)
+    save_figure_all_formats(fig, outpath, dpi=220)
     plt.close(fig)
 
 
@@ -447,7 +455,7 @@ def plot_composition_timeseries(
     ax.grid(axis="y", alpha=0.2, linewidth=0.6)
     ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, frameon=False)
     fig.tight_layout()
-    fig.savefig(outpath, dpi=220, bbox_inches="tight")
+    save_figure_all_formats(fig, outpath, dpi=220, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -532,7 +540,7 @@ def plot_transition_uncertainty(
 
     fig.suptitle(title, fontsize=12)
     fig.tight_layout()
-    fig.savefig(outpath, dpi=220)
+    save_figure_all_formats(fig, outpath, dpi=220)
     plt.close(fig)
 
 

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# This workflow uses the established DSL2/Groovy syntax.
+export NXF_SYNTAX_PARSER="${NXF_SYNTAX_PARSER:-v1}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_PATH="${SCRIPT_DIR}/$(basename "$0")"
 CONTROL_ENV_DIR="${CONTROL_ENV_DIR:-${SCRIPT_DIR}/.controller_env}"
@@ -11,6 +14,7 @@ PROCESS_ORDER=(
   BIOCHEM_DENSITY
   BIOCHEM_STRAT_METRICS
   BIOCHEM_CUSTOM_CLEAN
+  BIOCHEM_MISSINGNESS_SENSITIVITY
   BIOCHEM_EIGENVECTORS
   BIOCHEM_SELECTK
   BIOCHEM_GMM
@@ -25,7 +29,12 @@ PROCESS_ORDER=(
   BIOCHEM_EOF_PIPELINE
   BIOCHEM_EOF_STATE_CLUSTER
   BIOCHEM_EOF_MODE_PLOTS
+  BIOCHEM_GAPSEQ_MEDIA
   BIOCHEM_WITHIN_GMM_HDBSCAN
+  GAPSEQ_RECONSTRUCT
+  GAPSEQ_COMPARE_MEDIA
+  GAPSEQ_COMBINE_RESULTS
+  BIOCHEM_CONTINUOUS_SECTIONS
   MASTER_SUMMARY
 )
 
@@ -270,6 +279,8 @@ OUTPUT_DIR=$(yq -r '.paths.output_dir // empty' "$CONFIG_FILE")
 CONDA_CACHE_DIR=$(yq -r '.paths.conda_cache_dir // empty' "$CONFIG_FILE")
 RUNTIME_DIR=$(yq -r '.paths.runtime_dir // empty' "$CONFIG_FILE")
 KEEP_RUNTIME_DIR=$(yq -r '.paths.keep_runtime_dir // true' "$CONFIG_FILE")
+NATIVE_MATH_THREADS=$(yq -r '.resources.math_threads // 4' "$CONFIG_FILE")
+PIPELINE_THREADS=$(yq -r '.resources.threads // empty' "$CONFIG_FILE")
 
 if [[ -z "$OUTPUT_DIR" ]]; then
   echo "paths.output_dir must be set in $CONFIG_FILE" >&2
@@ -299,13 +310,48 @@ case "${KEEP_RUNTIME_DIR,,}" in
   *) echo "paths.keep_runtime_dir must be true or false: ${KEEP_RUNTIME_DIR}" >&2; exit 1 ;;
 esac
 
+if ! [[ "$NATIVE_MATH_THREADS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "resources.math_threads must be a positive integer: ${NATIVE_MATH_THREADS}" >&2
+  exit 1
+fi
+if [[ -z "$PIPELINE_THREADS" || "$PIPELINE_THREADS" == "null" ]]; then
+  PIPELINE_THREADS="$(getconf _NPROCESSORS_ONLN)"
+fi
+if ! [[ "$PIPELINE_THREADS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "resources.threads must be a positive integer: ${PIPELINE_THREADS}" >&2
+  exit 1
+fi
+MAX_CONCURRENT_TASKS=$(yq -r '.resources.max_concurrent_tasks // empty' "$CONFIG_FILE")
+if [[ -z "$MAX_CONCURRENT_TASKS" || "$MAX_CONCURRENT_TASKS" == "null" ]]; then
+  MAX_CONCURRENT_TASKS=$(( PIPELINE_THREADS / NATIVE_MATH_THREADS ))
+  (( MAX_CONCURRENT_TASKS > 0 )) || MAX_CONCURRENT_TASKS=1
+fi
+if ! [[ "$MAX_CONCURRENT_TASKS" =~ ^[1-9][0-9]*$ ]]; then
+  echo "resources.max_concurrent_tasks must be a positive integer: ${MAX_CONCURRENT_TASKS}" >&2
+  exit 1
+fi
+
+# Nextflow's `cpus` directive schedules tasks but does not constrain native
+# thread pools. Apply a workflow-wide cap inherited by Nextflow and its tasks.
+export OMP_NUM_THREADS="$NATIVE_MATH_THREADS"
+export OPENBLAS_NUM_THREADS="$NATIVE_MATH_THREADS"
+export MKL_NUM_THREADS="$NATIVE_MATH_THREADS"
+export NUMEXPR_NUM_THREADS="$NATIVE_MATH_THREADS"
+export NUMBA_NUM_THREADS="$NATIVE_MATH_THREADS"
+export BLIS_NUM_THREADS="$NATIVE_MATH_THREADS"
+export VECLIB_MAXIMUM_THREADS="$NATIVE_MATH_THREADS"
+export BASIN_MAX_CONCURRENT_TASKS="$MAX_CONCURRENT_TASKS"
+
+echo "[controller] Native math/thread-pool cap: ${NATIVE_MATH_THREADS} threads per task"
+echo "[controller] Nextflow concurrent-task cap: ${MAX_CONCURRENT_TASKS} tasks"
+
 mkdir -p "$WORK_DIR" "$CONDA_CACHE_DIR" "${CONDA_CACHE_DIR}/pkgs"
 mkdir -p "${OUTPUT_DIR}/modules" "${OUTPUT_DIR}/intermediates" \
   "${OUTPUT_DIR}/references" "${OUTPUT_DIR}/summary" "${OUTPUT_DIR}/logs"
 
 exec 7>"${CONDA_CACHE_DIR}/.basin-run.lock"
 if ! flock -n 7; then
-  echo "Another BASIN run is using Conda cache: ${CONDA_CACHE_DIR}" >&2
+  echo "Another BASINS run is using Conda cache: ${CONDA_CACHE_DIR}" >&2
   echo "Wait for it to finish or configure another paths.conda_cache_dir." >&2
   exit 1
 fi

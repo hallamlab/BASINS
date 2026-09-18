@@ -238,12 +238,20 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import install_publication_style
+
+install_publication_style()
 
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
@@ -519,7 +527,7 @@ def block_bootstrap_stability(
 
 def save_fig(path: str) -> None:
     plt.tight_layout()
-    plt.savefig(path, dpi=200)
+    save_figure_all_formats(plt.gcf(), path, dpi=200)
     plt.close()
 
 

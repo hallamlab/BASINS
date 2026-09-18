@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 from typing import List, Tuple
 
@@ -12,6 +13,12 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import install_publication_style
+
+install_publication_style()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 EIGENVECTORS_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "eigenvectors"))
@@ -22,7 +29,7 @@ try:
     import env_eigenvectors as ee
 except Exception as e:  # pragma: no cover
     raise ImportError(
-        "Could not import env_eigenvectors.py from BASIN/processes/eigenvectors."
+        "Could not import env_eigenvectors.py from BASINS/processes/eigenvectors."
     ) from e
 
 
@@ -410,7 +417,9 @@ def run_eof_pipeline(
         ax.set_ylabel("Number of cruises")
         ax.set_title("EOF cruise completeness distribution")
         fig.tight_layout()
-        fig.savefig(os.path.join(plots_dir, "eof_missingness_by_cruise_hist.png"), dpi=200)
+        save_figure_all_formats(
+            fig, os.path.join(plots_dir, "eof_missingness_by_cruise_hist.png"), dpi=200
+        )
         plt.close(fig)
 
         # Apply filtering BEFORE imputation/scaling/PCA
@@ -970,7 +979,11 @@ def run_eof_pipeline(
                 ax.set_title(f"EOF vertical loading profiles ({pc}) — top {top_vars} variables")
                 ax.legend(loc="best", fontsize=8)
                 fig.tight_layout()
-                fig.savefig(os.path.join(out_plots_dir, f"eof_vertical_loading_profiles_{pc}.png"), dpi=200)
+                save_figure_all_formats(
+                    fig,
+                    os.path.join(out_plots_dir, f"eof_vertical_loading_profiles_{pc}.png"),
+                    dpi=200,
+                )
                 plt.close(fig)
 
                 # ---- Plot 2: mean abs loading vs depth (all vars) ----
@@ -982,7 +995,11 @@ def run_eof_pipeline(
                 ax.invert_yaxis()
                 ax.set_title(f"EOF mean absolute loading vs depth ({pc})")
                 fig.tight_layout()
-                fig.savefig(os.path.join(out_plots_dir, f"eof_vertical_loading_meanabs_{pc}.png"), dpi=200)
+                save_figure_all_formats(
+                    fig,
+                    os.path.join(out_plots_dir, f"eof_vertical_loading_meanabs_{pc}.png"),
+                    dpi=200,
+                )
                 plt.close(fig)
 
                 # ---- Plot 3: signed weighted-mean loading vs depth (all vars) ----
@@ -995,7 +1012,11 @@ def run_eof_pipeline(
                 ax.invert_yaxis()
                 ax.set_title(f"EOF weighted signed mean loading vs depth ({pc})")
                 fig.tight_layout()
-                fig.savefig(os.path.join(out_plots_dir, f"eof_vertical_loading_weightedmean_{pc}.png"), dpi=200)
+                save_figure_all_formats(
+                    fig,
+                    os.path.join(out_plots_dir, f"eof_vertical_loading_weightedmean_{pc}.png"),
+                    dpi=200,
+                )
                 plt.close(fig)
 
         # Generate vertical loading profile diagnostics for PC1..PC5

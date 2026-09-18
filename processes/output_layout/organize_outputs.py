@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish completed BASIN staging outputs in an ASPIRE-style layout."""
+"""Publish completed BASINS staging outputs in an ASPIRE-style layout."""
 
 from __future__ import annotations
 
@@ -13,10 +13,12 @@ from pathlib import Path
 
 
 PLOT_SUFFIXES = {".svg", ".pdf", ".png", ".jpg", ".jpeg", ".html"}
-PUBLIC_DIRS = ("modules", "intermediates", "references", "summary", "logs", "biochem_pipeline")
+PUBLIC_DIRS = ("modules", "intermediates", "references", "summary", "logs")
 MODULES = {
     "biochem_processing": "biochemical_processing",
+    "env_missingness_sensitivity": "missingness_sensitivity",
     "env_pca": "environmental_pca",
+    "env_continuous_sections": "continuous_time_depth_sections",
     "env_compartments_selectk": "compartment_selection",
     "env_compartments_gmm": "gmm_compartments",
     "env_o2_soft_compartments": "oxygen_compartments",
@@ -30,6 +32,8 @@ MODULES = {
     "eof_pca": "eof_analysis",
     "eof_states": "eof_states",
     "eof_plots": "eof_modes",
+    "gapseq_media": "gapseq_media",
+    "genome_modeling": "genome_modeling",
 }
 
 
@@ -55,11 +59,6 @@ def move_tree(source: Path, module: Path) -> None:
     shutil.rmtree(source, ignore_errors=True)
     (module / "tables").mkdir(parents=True, exist_ok=True)
     (module / "plots").mkdir(parents=True, exist_ok=True)
-
-
-def locate_scientific_root(root: Path) -> Path:
-    nested = root / "biochem_pipeline"
-    return nested if nested.is_dir() else root
 
 
 def write_manifests(root: Path) -> list[tuple[str, int, int]]:
@@ -106,8 +105,8 @@ def write_report(root: Path, counts: list[tuple[str, int, int]]) -> None:
         bars.append(f'<text x="810" y="{y + 10}">{tables} tables, {plots} plots</text>')
     height = max(150, 90 + len(counts) * 28)
     svg = f'''<svg xmlns="http://www.w3.org/2000/svg" width="920" height="{height}">
-<style>text{{font:12px sans-serif;fill:#202020}}</style><rect width="100%" height="100%" fill="white"/>
-<text x="20" y="28" style="font-size:20px;font-weight:bold">BASIN module outputs</text>{''.join(bars)}</svg>'''
+<style>text{{font:12px "Times New Roman",serif;fill:#202020}}</style><rect width="100%" height="100%" fill="white"/>
+<text x="20" y="28" style="font-size:20px;font-weight:bold">BASINS module outputs</text>{''.join(bars)}</svg>'''
     (summary / "plots" / "module_output_summary.svg").write_text(svg)
     cards = "".join(
         f'<article><h2>{html.escape(name.replace("_", " ").title())}</h2><p>{tables} tables; {plots} plots.</p>'
@@ -127,35 +126,17 @@ def write_report(root: Path, counts: list[tuple[str, int, int]]) -> None:
             ("nextflow_version.txt", "Nextflow version"),
         ) if (root / "logs" / name).is_file()
     )
-    report = f'''<!doctype html><html><head><meta charset="utf-8"><title>BASIN run report</title>
-<style>body{{font-family:sans-serif;max-width:1100px;margin:2rem auto;color:#202020}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem}}article{{border:1px solid #ddd;border-radius:8px;padding:1rem}}a{{color:#006a8e;margin-right:1rem}}img{{max-width:100%}}</style></head>
-<body><h1>BASIN run report</h1><p>Non-interpretive inventory of environmental processing, compartment, stratification, EOF, and diagnostic outputs.</p>
-<h2>Output inventory</h2><img src="../plots/module_output_summary.svg" alt="BASIN module output counts"><div class="grid">{cards}</div>
+    report = f'''<!doctype html><html><head><meta charset="utf-8"><title>BASINS run report</title>
+<style>body{{font-family:"Times New Roman",serif;max-width:1100px;margin:2rem auto;color:#202020}}.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem}}article{{border:1px solid #ddd;border-radius:8px;padding:1rem}}a{{color:#006a8e;margin-right:1rem}}img{{max-width:100%}}</style></head>
+<body><h1>BASINS run report</h1><p>Non-interpretive inventory of environmental processing, compartment, stratification, EOF, and diagnostic outputs.</p>
+<h2>Output inventory</h2><img src="../plots/module_output_summary.svg" alt="BASINS module output counts"><div class="grid">{cards}</div>
 <h2>Master summary</h2><p><a href="../tables/basin_run_overview.tsv">Run overview</a> <a href="../tables/basin_key_outputs.tsv">Key outputs</a> <a href="../tables/basin_module_inventory.tsv">Module inventory</a></p>
 <h2>Nextflow run details</h2><ul>{log_links}</ul><p>Exact paths and checksums are in <a href="../tables/module_output_manifest.tsv">module_output_manifest.tsv</a>.</p></body></html>'''
     (summary / "report" / "BASIN_run_report.html").write_text(report)
 
 
-def compatibility_links(root: Path) -> None:
-    compat = root / "biochem_pipeline"
-    compat.mkdir(parents=True, exist_ok=True)
-    for source_name, module_name in MODULES.items():
-        legacy_root = compat / source_name
-        legacy_root.mkdir(parents=True, exist_ok=True)
-        module_root = root / "modules" / module_name
-        for bucket in ("tables", "plots"):
-            bucket_root = module_root / bucket
-            if not bucket_root.is_dir():
-                continue
-            for source in sorted(path for path in bucket_root.rglob("*") if path.is_file()):
-                destination = legacy_root / source.relative_to(bucket_root)
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                depth = len(destination.parent.relative_to(root).parts)
-                destination.symlink_to(Path(*([".."] * depth)) / source.relative_to(root))
-
-
 def organize(root: Path, config: Path | None) -> None:
-    scientific = locate_scientific_root(root)
+    scientific = root
     modules = root / "modules"
     summary = root / "summary"
     for directory in (modules, root / "intermediates", root / "references", summary / "tables", summary / "plots", summary / "report", root / "logs"):
@@ -168,13 +149,10 @@ def organize(root: Path, config: Path | None) -> None:
             if path.is_file():
                 shutil.move(str(path), str(summary / "tables" / path.name))
         shutil.rmtree(master, ignore_errors=True)
-    if scientific != root:
-        shutil.rmtree(scientific, ignore_errors=True)
     if config and config.is_file():
         shutil.copy2(config, summary / "tables" / "run_config.yml")
     counts = write_manifests(root)
     write_report(root, counts)
-    compatibility_links(root)
 
 
 def publish(staging: Path, output: Path, config: Path | None) -> None:

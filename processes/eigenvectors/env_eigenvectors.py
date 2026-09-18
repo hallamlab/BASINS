@@ -32,9 +32,12 @@ Pipeline (always, in this order)
    - IMPORTANT: samples already at an anchor depth (by rounded depth) are never evaluated for snapping;
      they are kept as-is (“is_anchor”).
    - Similarity distances are computed in z-scored space where z-score parameters are computed from observed data
-     (no imputation); negative feature values are treated as missing (NaN).
+     (no imputation).
 
 3) Missingness summaries + core/sparse classification (features only)
+   - Null/blank/non-numeric, non-finite, and negative values are "not measured."
+   - Every finite numeric value greater than or equal to zero is "measured."
+   - Zero is retained as a measured non-detect and is never converted to missing.
    - Writes missingness stats before/after filtering.
    - Marks feature columns as sparse if missing fraction > --dropna-col-thresh
 
@@ -149,7 +152,9 @@ PC selection outputs (if enabled)
 - loadings_heatmap_by_feature_cluster.png
 
 Notes / invariants
-- Negative values are treated as missing (NaN) and are never clamped to 0.
+- Null/non-numeric/non-finite values and physically invalid negative values are missing.
+- Zero is an observed measurement (interpreted as a non-detect), not a missing value.
+- Negative values are converted to missing, never clamped to 0.
 - Interpolation never crosses profiles (cruises) and never crosses depths for fallback.
 - Depth anchoring never uses imputed values; it uses observed feature overlap only.
 """
@@ -159,12 +164,25 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from shared_plot_export import save_figure_all_formats
+from shared_plot_style import (
+    calculate_biplot_vector_scale,
+    draw_biplot_vector,
+    install_publication_style,
+    layout_biplot_labels,
+)
+
+install_publication_style()
 
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
@@ -222,6 +240,7 @@ BIOCHEM_COLOR_MAP = {
     "Hydrogen Sulfide": "#D95F02",
     "Dimethyl Sulfide": "#E6AB02",
     "Methane": "violet",
+    "Iron": "red",
     "Fe": "red",
     "Fluorescence": "limegreen",
     "Temperature": "gray",
@@ -230,6 +249,11 @@ BIOCHEM_COLOR_MAP = {
     "Silicate": "peru",
     "Density": "tan",
 }
+
+# Keep all PC1-PC2 biplots on the same canvas for direct visual comparison
+# with the compartment-colored biplots produced by compare_compartments.
+BIPLOT_FIGSIZE = (10.5, 7.2)
+BIPLOT_BOX_ASPECT = 1.0
 
 # -----------------------------
 # CLI / config
@@ -474,15 +498,35 @@ def coerce_numeric(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
 # Cleaning transforms
 # -----------------------------
 
-def negatives_to_nan(X: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
+def invalid_measurements_to_nan(X: pd.DataFrame) -> Tuple[pd.DataFrame, int, int]:
+    """Set negative and non-finite assay values to missing while preserving zero."""
     X2 = X.copy()
-    neg_mask = X2 < 0
-    n_neg = int(neg_mask.sum().sum())
-    if n_neg > 0:
-        X2[neg_mask] = np.nan
-    return X2, n_neg
+    nonfinite_mask = pd.DataFrame(
+        ~np.isfinite(X2.to_numpy(dtype=float)),
+        index=X2.index,
+        columns=X2.columns,
+    ) & X2.notna()
+    negative_mask = (X2 < 0) & ~nonfinite_mask
+    n_nonfinite = int(nonfinite_mask.sum().sum())
+    n_negative = int(negative_mask.sum().sum())
+    invalid_mask = nonfinite_mask | negative_mask
+    if invalid_mask.any().any():
+        X2[invalid_mask] = np.nan
+    return X2, n_negative, n_nonfinite
 
 def maybe_log1p(X: pd.DataFrame) -> pd.DataFrame:
+    invalid = X <= -1
+    if invalid.any().any():
+        locations = np.argwhere(invalid.to_numpy())
+        examples = [
+            f"{X.columns[col]}={X.iloc[row, col]:g}"
+            for row, col in locations[:5]
+        ]
+        raise ValueError(
+            "--log1p cannot be applied to measured values <= -1. "
+            "Disable --log1p or use a scientifically appropriate transform. "
+            f"Examples: {', '.join(examples)}"
+        )
     return np.log1p(X)
 
 
@@ -550,7 +594,7 @@ def anchor_depth_column_data_driven(
     min_features: int,
     margin: float,
     proto_min_n: int,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, int]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, int, int]:
     """
     DATA-DRIVEN depth anchoring:
     - Global anchors chosen from most common rounded depths (whole dataset)
@@ -566,7 +610,7 @@ def anchor_depth_column_data_driven(
 
     if depth_col not in out.columns:
         out[anchored_col] = np.nan
-        return out, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), 0
+        return out, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), 0, 0
 
     if by_col not in out.columns:
         # If missing grouping column, treat as one block.
@@ -575,11 +619,11 @@ def anchor_depth_column_data_driven(
     # Depth numeric
     d = pd.to_numeric(out[depth_col], errors="coerce")
 
-    # Features numeric matrix for similarity (pre-impute). Treat negatives as missing.
+    # Features numeric matrix for similarity (pre-impute). Zero is observed; negatives are invalid.
     feats_present = [c for c in feature_cols if c in out.columns]
     X = out[feats_present].apply(pd.to_numeric, errors="coerce")
 
-    X, n_neg_as_nan = negatives_to_nan(X)
+    X, n_negative_as_nan, n_nonfinite_as_nan = invalid_measurements_to_nan(X)
 
     # Z-score params from observed values (no imputation)
     mu, sd = _zscore_params_from_observed(X)
@@ -588,7 +632,10 @@ def anchor_depth_column_data_driven(
     anchor_vals, anchors_df, d_round = _choose_global_anchors(d, round_m=round_m, top_k=top_k, min_count=min_count)
     if anchor_vals.size == 0:
         out[anchored_col] = d
-        return out, anchors_df, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), n_neg_as_nan
+        return (
+            out, anchors_df, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(),
+            n_negative_as_nan, n_nonfinite_as_nan,
+        )
 
     # Mapping summary (rounded->anchor decision frequency later)
     mapping_df = pd.DataFrame({"depth_rounded": d_round.values})
@@ -809,7 +856,10 @@ def anchor_depth_column_data_driven(
         proto_counts_rows.append({"block": b, "anchor_depth_m": float(a), "n_rows_at_anchor": int(n), "prototype_built": (n >= proto_min_n)})
     proto_counts_df = pd.DataFrame(proto_counts_rows).sort_values(["block", "anchor_depth_m"])
 
-    return out, anchors_df, mapping_summary_df, decisions_df, proto_counts_df, n_neg_as_nan
+    return (
+        out, anchors_df, mapping_summary_df, decisions_df, proto_counts_df,
+        n_negative_as_nan, n_nonfinite_as_nan,
+    )
 
 
 # -----------------------------
@@ -817,10 +867,23 @@ def anchor_depth_column_data_driven(
 # -----------------------------
 
 def basic_missingness_stats(df_num: pd.DataFrame, feats: List[str]) -> pd.DataFrame:
+    n_rows = int(len(df_num))
     miss = pd.DataFrame({
         "feature": feats,
+        "n_rows": n_rows,
+        "n_measured": [int(df_num[c].notna().sum()) for c in feats],
         "n_missing": [int(df_num[c].isna().sum()) for c in feats],
+        "n_zero_measured": [int(df_num[c].eq(0).sum()) for c in feats],
+        "frac_measured": [float(df_num[c].notna().mean()) for c in feats],
         "frac_missing": [float(df_num[c].isna().mean()) for c in feats],
+        "frac_zero_of_measured": [
+            (
+                float(df_num[c].eq(0).sum() / df_num[c].notna().sum())
+                if df_num[c].notna().sum() > 0
+                else np.nan
+            )
+            for c in feats
+        ],
     }).sort_values(["frac_missing", "n_missing"], ascending=False)
     return miss
 
@@ -1118,7 +1181,7 @@ def impute_within_profile_depth(
 
 def save_fig(path: str) -> None:
     plt.tight_layout()
-    plt.savefig(path, dpi=200)
+    save_figure_all_formats(plt.gcf(), path, dpi=200)
     plt.close()
 
 
@@ -1198,7 +1261,7 @@ def plot_biplot_core_and_sparse(
         sparse_corr_df = pd.DataFrame(columns=["feature", "PC", "spearman_r"])
 
     # ---- points (neutral) ----
-    plt.figure(figsize=(8.5, 7.0))
+    plt.figure(figsize=BIPLOT_FIGSIZE)
     plt.scatter(
         scores_df["PC1"].values,
         scores_df["PC2"].values,
@@ -1218,7 +1281,7 @@ def plot_biplot_core_and_sparse(
         boxstyle="round,pad=0.15",
         facecolor="white",
         edgecolor="none",
-        alpha=0.75,
+        alpha=1.0,
     )
 
     def _place_label_at_tip(feat: str, tipx: float, tipy: float, col, *, scale: float = 1.06, pad_frac: float = 0.03):
@@ -1336,15 +1399,6 @@ def plot_biplot_core_and_sparse(
                 ax.plot([ax_x, t.get_position()[0]], [ax_y, t.get_position()[1]],
                         linewidth=0.8, color="0.7", zorder=2)
 
-    # ---- define scaling so arrows live comfortably inside the score cloud ----
-    x = scores_df["PC1"].to_numpy()
-    y = scores_df["PC2"].to_numpy()
-    xr = np.nanpercentile(x, 99) - np.nanpercentile(x, 1)
-    yr = np.nanpercentile(y, 99) - np.nanpercentile(y, 1)
-    cloud_scale = 0.35 * float(min(xr, yr)) if np.isfinite(xr) and np.isfinite(yr) else 1.0
-    if cloud_scale <= 0:
-        cloud_scale = 1.0
-
     # ---- core feature arrows (solid): use PCA loadings ----
     core = loadings_df[["PC1", "PC2"]].copy()
     core["feature"] = core.index.astype(str)
@@ -1373,13 +1427,16 @@ def plot_biplot_core_and_sparse(
     sp = sp.sort_values("norm", ascending=False)
     sp = sp[sp["norm"] >= float(min_sparse_norm)].head(int(top_sparse))
 
-    # Scale both sets using the largest arrow magnitude among whichever is present
-    max_core = core["norm"].max() if not core.empty else np.nan
-    max_sparse = sp["norm"].max() if not sp.empty else np.nan
-    denom = np.nanmax([max_core, max_sparse])
-    if not np.isfinite(denom) or denom <= 0:
-        denom = 1.0
-    arrow_scale = cloud_scale / denom
+    # Use the shared geometry also used by every compartment biplot.
+    vector_norms = pd.concat(
+        [core["norm"], sp["norm"]],
+        ignore_index=True,
+    ).to_numpy(dtype=float)
+    cloud_scale, arrow_scale = calculate_biplot_vector_scale(
+        scores_df["PC1"],
+        scores_df["PC2"],
+        vector_norms,
+    )
 
     # ---- draw arrows + labels; legend proxies ----
     core_handles = []
@@ -1392,24 +1449,8 @@ def plot_biplot_core_and_sparse(
         cx = float(r["PC1"]) * arrow_scale
         cy = float(r["PC2"]) * arrow_scale
         col = BIOCHEM_COLOR_MAP[feat]
-        # white outline (draw first)
-        plt.arrow(
-            0, 0, cx, cy,
-            length_includes_head=True,
-            head_width=0.032 * cloud_scale,
-            linewidth=3.2,
-            color="white",
-            zorder=3,
-        )
-
-        # colored arrow on top
-        plt.arrow(
-            0, 0, cx, cy,
-            length_includes_head=True,
-            head_width=0.03 * cloud_scale,
-            linewidth=2.2,
-            color=col,
-            zorder=4,
+        draw_biplot_vector(
+            plt.gca(), cx, cy, col, "Core loading", cloud_scale
         )
 
         t = _place_label_at_tip(feat, cx, cy, col, scale=1.06, pad_frac=0.03)
@@ -1423,26 +1464,9 @@ def plot_biplot_core_and_sparse(
         sx = float(r["PC1"]) * arrow_scale
         sy = float(r["PC2"]) * arrow_scale
         col = BIOCHEM_COLOR_MAP[feat]
-        # dashed for sparse
-        # white outline (dashed)
-        plt.plot(
-            [0, sx], [0, sy],
-            linestyle="--",
-            linewidth=3.2,
-            color="white",
-            zorder=3,
+        draw_biplot_vector(
+            plt.gca(), sx, sy, col, "Sparse correlation", cloud_scale
         )
-
-        # colored dashed arrow
-        plt.plot(
-            [0, sx], [0, sy],
-            linestyle="--",
-            linewidth=2.2,
-            color=col,
-            zorder=4,
-        )
-
-        plt.scatter([sx], [sy], s=22, color=col, zorder=4)
 
         t = _place_label_at_tip(feat, sx, sy, col, scale=1.06, pad_frac=0.03)
 
@@ -1450,9 +1474,10 @@ def plot_biplot_core_and_sparse(
         label_anchors.append((sx, sy))  # arrow tip in data coords
         sparse_handles.append(plt.Line2D([0], [0], color=col, linestyle="--", linewidth=2, label=f"{feat} (sparse)"))
 
-    # Repel overlapping labels (lightweight, no deps)
+    # Place labels in collision-free lanes outside every vector arrow.
     ax = plt.gca()
-    _repel_texts(ax, label_texts, label_anchors)
+    layout_biplot_labels(ax, label_texts, label_anchors)
+    ax.set_box_aspect(BIPLOT_BOX_ASPECT)
 
     handles = core_handles + sparse_handles
     if handles:
@@ -1968,9 +1993,13 @@ def main() -> None:
         raise ValueError("None of the configured feature columns were found in your input table.")
 
     # ---- DATA-DRIVEN depth anchoring (pre-flight) ----
-    anchoring_neg_as_nan_count = 0
+    anchoring_negative_as_nan_count = 0
+    anchoring_nonfinite_as_nan_count = 0
     if cfg.anchor_depths and (cfg.depth_col in df_num.columns):
-        df_num, anchors_df, mapping_df, decisions_df, proto_counts_df, anchoring_neg_as_nan_count = anchor_depth_column_data_driven(
+        (
+            df_num, anchors_df, mapping_df, decisions_df, proto_counts_df,
+            anchoring_negative_as_nan_count, anchoring_nonfinite_as_nan_count,
+        ) = anchor_depth_column_data_driven(
             df=df_num,
             depth_col=cfg.depth_col,
             anchored_col=cfg.anchored_depth_col,
@@ -2009,9 +2038,12 @@ def main() -> None:
     if cfg.anchored_depth_col in df_num.columns and cfg.anchored_depth_col not in meta_cols:
         meta_cols.append(cfg.anchored_depth_col)
 
-    # Negative handling (pre-impute): treat negatives as missing
-    n_neg_as_missing_pre = 0
-    df_num[feats], n_neg_as_missing_pre = negatives_to_nan(df_num[feats])
+    # Observation handling: zero is measured; negative/non-finite assay values are not measured.
+    (
+        df_num[feats],
+        n_negative_as_missing_pre,
+        n_nonfinite_as_missing_pre,
+    ) = invalid_measurements_to_nan(df_num[feats])
 
     # Missingness pre-drop (features only)
     miss0 = basic_missingness_stats(df_num, feats)
@@ -2030,7 +2062,20 @@ def main() -> None:
     core_sparse_tbl = pd.DataFrame({
         "feature": feats,
         "status": ["core" if c in core_feats else "sparse" for c in feats],
+        "n_rows": int(len(df_num)),
+        "n_measured": [int(df_num[c].notna().sum()) for c in feats],
+        "n_not_measured": [int(df_num[c].isna().sum()) for c in feats],
+        "n_zero_measured": [int(df_num[c].eq(0).sum()) for c in feats],
+        "frac_measured": [float(df_num[c].notna().mean()) for c in feats],
         "frac_missing": [float(col_missing[c]) for c in feats],
+        "frac_zero_of_measured": [
+            (
+                float(df_num[c].eq(0).sum() / df_num[c].notna().sum())
+                if df_num[c].notna().sum() > 0
+                else np.nan
+            )
+            for c in feats
+        ],
         "dropna_col_thresh": float(cfg.dropna_col_thresh),
     }).sort_values(["status", "frac_missing", "feature"], ascending=[True, False, True])
 
@@ -2244,8 +2289,15 @@ def main() -> None:
         "interp_max_gap": int(cfg.interp_max_gap),
         "interp_neighbors": int(cfg.interp_neighbors),
         "interp_degree": int(cfg.interp_degree),
-        "n_negative_values_set_to_nan_pre_impute": int(n_neg_as_missing_pre),
-        "n_negative_values_set_to_nan_during_anchoring_similarity": int(anchoring_neg_as_nan_count),
+        "measurement_semantics": (
+            "null_blank_non_numeric_nonfinite_or_negative_is_not_measured;"
+            "finite_numeric_greater_than_or_equal_to_zero_is_measured;"
+            "zero_is_measured_non_detect"
+        ),
+        "n_negative_values_set_to_nan_pre_impute": int(n_negative_as_missing_pre),
+        "n_negative_values_set_to_nan_during_anchoring_similarity": int(anchoring_negative_as_nan_count),
+        "n_nonfinite_values_set_to_nan_pre_impute": int(n_nonfinite_as_missing_pre),
+        "n_nonfinite_values_set_to_nan_during_anchoring_similarity": int(anchoring_nonfinite_as_nan_count),
         "n_components_fit": int(pca.n_components_),
         "pc_selection_ran": bool(cfg.pc_selection),
     }
