@@ -68,3 +68,7 @@ reports/
 /scripts/build_showcase_physicochemistry.py
 /update_manual_renewal_package.py
 /examples/si.sag_xpg_genomes.tsv
+
+# Public documentation builds (never stage local manuscript material)
+/_build/
+/docs/_build/

@@ -1,0 +1,21 @@
+{
+  "canvas_width": 2240,
+  "mermaid_scale": 1.5,
+  "figures": [
+    {
+      "name": "conceptual",
+      "page": "docs/workflow.md",
+      "index": 0
+    },
+    {
+      "name": "architecture",
+      "page": "docs/workflow.md",
+      "index": 1
+    },
+    {
+      "name": "data-flow",
+      "page": "docs/workflow.md",
+      "index": 2
+    }
+  ]
+}

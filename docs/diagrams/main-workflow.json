@@ -1,0 +1,45 @@
+{
+  "title": "BASINS",
+  "rows": [
+    [
+      "Environmental observations",
+      "Chemistry + CTD profiles",
+      "Match profile keys and nearest depth; reconcile oxygen measurements."
+    ],
+    [
+      "Physical water-column structure",
+      "Density, stratification, and renewal",
+      "GSW density; N\u00b2, mixed-layer depth, PEA, oxygen/nitrate event diagnostics."
+    ],
+    [
+      "Environmental feature matrix",
+      "Cleaning, missingness, and PCA",
+      "Select numeric chemistry; optional missingness sensitivity; scores and loadings."
+    ],
+    [
+      "Environmental compartments",
+      "GMM, oxygen, and hybrid schemes",
+      "Select K; fit responsibilities; combine assignments; compare and subdivide states."
+    ],
+    [
+      "Temporal and ecological context",
+      "Transitions, succession, and feature associations",
+      "Track environmental states; quantify associated measurements and temporal changes."
+    ],
+    [
+      "Cruise structure and refinement",
+      "EOF groups and within-GMM HDBSCAN",
+      "Baseline-adjusted profiles; stability and season checks; optional continuous sections."
+    ],
+    [
+      "Optional metabolic modeling",
+      "Environmental media + genome reconstruction",
+      "gapseq fixed models; COBRApy growth, exchange FVA, nutrient counterfactuals."
+    ],
+    [
+      "Published results",
+      "Tables, figures, provenance, and HTML report",
+      "Nextflow completion \u2192 atomic publication into modules, summary, and logs."
+    ]
+  ]
+}

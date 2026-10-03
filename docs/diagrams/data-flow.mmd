@@ -1,0 +1,18 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Georgia, serif","fontSize":"18px","primaryColor":"#d9e5ef","primaryTextColor":"#111111","primaryBorderColor":"#777777","lineColor":"#777777","secondaryColor":"#dceadb","tertiaryColor":"#f5e5cb","edgeLabelBackground":"#ffffff"},"flowchart":{"htmlLabels":false,"curve":"linear"}}}%%
+flowchart TB
+ A["Geochemistry + CTD CSV"] --> B["Nearest-depth merge + best available oxygen"]
+ B --> C["GSW density + stratification + renewal metrics"]
+ C --> D["Clean/rename chemistry + optional missingness sensitivity"]
+ D --> E["PCA scores, loadings, and core/sparse matrices"]
+ E --> F["Select K → GMM → oxygen → hybrid assignments"]
+ F --> G["Scheme comparisons + oxygen/GMM subdivisions"]
+ G --> H["Anomalies → transitions → succession → feature associations"]
+ H --> I["EOF profiles, cruise groups, stability and seasonal checks"]
+ I --> J["Within-GMM HDBSCAN + optional continuous sections"]
+ I -.-> K["Optional: basal medium + group chemistry recipes"]
+ L["Optional genome FASTAs + manifest"] --> M["gapseq: fixed reconstructed models"]
+ K --> N["COBRApy: growth, FVA, counterfactuals"]
+ M --> N
+ N --> O["Cross-genome comparisons"]
+ J --> P["Master summary + publication"]
+ O --> P

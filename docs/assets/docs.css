@@ -1,0 +1,4 @@
+.wy-nav-content {max-width:1150px;}
+.rst-content img[src*="workflow-main"] {display:block;width:100%;max-width:100%;height:auto;margin:1.5rem auto;}
+.rst-content img[src*="/diagrams/"] {display:block;width:100%;max-width:100%;height:auto;margin:1.5rem auto;}
+.rst-content table.docutils td {vertical-align:top;}

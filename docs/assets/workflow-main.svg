@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1486" viewBox="0 0 1400 1486" role="img">
+<title>BASINS complete workflow</title>
+<rect width="100%" height="100%" fill="white"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#666"/></marker></defs>
+<text x="700" y="46" text-anchor="middle" font-family="Georgia,serif" font-size="32" font-weight="bold">BASINS workflow</text>
+<rect x="22" y="80" width="1356" height="142" rx="12" fill="#d9e5ef" stroke="#777" stroke-width="2"/>
+<text x="48" y="115" font-family="Georgia,serif" font-size="25" font-weight="bold">1. Environmental observations</text>
+<text x="48" y="157" font-family="Georgia,serif" font-size="25">Chemistry + CTD profiles</text>
+<text x="48" y="195" font-family="Georgia,serif" font-size="22">Match profile keys and nearest depth; reconcile oxygen measurements.</text>
+<path d="M700 222 V252" stroke="#666" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+<rect x="22" y="252" width="1356" height="142" rx="12" fill="#eadff0" stroke="#777" stroke-width="2"/>
+<text x="48" y="287" font-family="Georgia,serif" font-size="25" font-weight="bold">2. Physical water-column structure</text>
+<text x="48" y="329" font-family="Georgia,serif" font-size="25">Density, stratification, and renewal</text>
+<text x="48" y="367" font-family="Georgia,serif" font-size="22">GSW density; N², mixed-layer depth, PEA, oxygen/nitrate event diagnostics.</text>
+<path d="M700 394 V424" stroke="#666" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+<rect x="22" y="424" width="1356" height="142" rx="12" fill="#dceadb" stroke="#777" stroke-width="2"/>
+<text x="48" y="459" font-family="Georgia,serif" font-size="25" font-weight="bold">3. Environmental feature matrix</text>
+<text x="48" y="501" font-family="Georgia,serif" font-size="25">Cleaning, missingness, and PCA</text>
+<text x="48" y="539" font-family="Georgia,serif" font-size="22">Select numeric chemistry; optional missingness sensitivity; scores and loadings.</text>
+<path d="M700 566 V596" stroke="#666" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+<rect x="22" y="596" width="1356" height="142" rx="12" fill="#f5e5cb" stroke="#777" stroke-width="2"/>
+<text x="48" y="631" font-family="Georgia,serif" font-size="25" font-weight="bold">4. Environmental compartments</text>
+<text x="48" y="673" font-family="Georgia,serif" font-size="25">GMM, oxygen, and hybrid schemes</text>
+<text x="48" y="711" font-family="Georgia,serif" font-size="22">Select K; fit responsibilities; combine assignments; compare and subdivide states.</text>
+<path d="M700 738 V768" stroke="#666" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+<rect x="22" y="768" width="1356" height="142" rx="12" fill="#e3e3ef" stroke="#777" stroke-width="2"/>
+<text x="48" y="803" font-family="Georgia,serif" font-size="25" font-weight="bold">5. Temporal and ecological context</text>
+<text x="48" y="845" font-family="Georgia,serif" font-size="25">Transitions, succession, and feature associations</text>
+<text x="48" y="883" font-family="Georgia,serif" font-size="22">Track environmental states; quantify associated measurements and temporal changes.</text>
+<path d="M700 910 V940" stroke="#666" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+<rect x="22" y="940" width="1356" height="142" rx="12" fill="#d6e9e7" stroke="#777" stroke-width="2"/>
+<text x="48" y="975" font-family="Georgia,serif" font-size="25" font-weight="bold">6. Cruise structure and refinement</text>
+<text x="48" y="1017" font-family="Georgia,serif" font-size="25">EOF groups and within-GMM HDBSCAN</text>
+<text x="48" y="1055" font-family="Georgia,serif" font-size="22">Baseline-adjusted profiles; stability and season checks; optional continuous sections.</text>
+<path d="M700 1082 V1112" stroke="#666" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+<rect x="22" y="1112" width="1356" height="142" rx="12" fill="#eedfdc" stroke="#777" stroke-width="2"/>
+<text x="48" y="1147" font-family="Georgia,serif" font-size="25" font-weight="bold">7. Optional metabolic modeling</text>
+<text x="48" y="1189" font-family="Georgia,serif" font-size="25">Environmental media + genome reconstruction</text>
+<text x="48" y="1227" font-family="Georgia,serif" font-size="22">gapseq fixed models; COBRApy growth, exchange FVA, nutrient counterfactuals.</text>
+<path d="M700 1254 V1284" stroke="#666" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>
+<rect x="22" y="1284" width="1356" height="142" rx="12" fill="#e1e1e1" stroke="#777" stroke-width="2"/>
+<text x="48" y="1319" font-family="Georgia,serif" font-size="25" font-weight="bold">8. Published results</text>
+<text x="48" y="1361" font-family="Georgia,serif" font-size="25">Tables, figures, provenance, and HTML report</text>
+<text x="48" y="1399" font-family="Georgia,serif" font-size="22">Nextflow completion → atomic publication into modules, summary, and logs.</text>
+</svg>

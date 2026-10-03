@@ -1,0 +1,7 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Georgia, serif","fontSize":"18px","primaryColor":"#d9e5ef","primaryTextColor":"#111111","primaryBorderColor":"#777777","lineColor":"#777777","secondaryColor":"#dceadb","tertiaryColor":"#f5e5cb","edgeLabelBackground":"#ffffff"},"flowchart":{"htmlLabels":false,"curve":"linear"}}}%%
+flowchart TB
+ A["Chemistry + CTD observations"] --> B["Physical structure + environmental feature space"]
+ B --> C["Compartment assignments + temporal context"]
+ C --> D["Tables, figures, and run report"]
+ C -. "optional" .-> E["Environmental media + genome models"]
+ E --> D

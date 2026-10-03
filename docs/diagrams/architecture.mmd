@@ -1,0 +1,12 @@
+%%{init: {"theme":"base","themeVariables":{"fontFamily":"Georgia, serif","fontSize":"18px","primaryColor":"#d9e5ef","primaryTextColor":"#111111","primaryBorderColor":"#777777","lineColor":"#777777","secondaryColor":"#dceadb","tertiaryColor":"#f5e5cb","edgeLabelBackground":"#ffffff"},"flowchart":{"htmlLabels":false,"curve":"linear"}}}%%
+flowchart TB
+ A["User: YAML configuration + input files"] --> B["run_basins_pipeline.sh"]
+ B --> C["Mamba controller environment"]
+ C --> D["Nextflow DSL2 dependency graph"]
+ D --> E["Scientific process environments"]
+ E --> F["Environmental stages: ordered dependencies"]
+ E --> G["Optional genome tasks: scatter by genome"]
+ F --> H["Publication staging + Nextflow logs/cache"]
+ G --> H
+ H --> I["Successful run: atomic output publication"]
+ D -. "site configuration" .-> J["Cluster executor + shared paths"]
