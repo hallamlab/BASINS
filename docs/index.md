@@ -14,6 +14,8 @@ Start with [installation](installation.md), then run the [bundled reviewer examp
 
 [Explore the detailed workflow](workflow.md) · [Overview SVG](assets/workflow-brief.svg) · [Overview PDF](assets/workflow-brief.pdf)
 
+Arrows between numbered modules trace the conceptual flow of results. Optional branches depend on configuration; the detailed workflow explains task dependencies.
+
 ```{toctree}
 :maxdepth: 2
 :caption: Getting started

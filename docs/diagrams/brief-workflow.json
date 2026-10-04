@@ -3,11 +3,11 @@
   "inputs": [
     "Geochemistry / bottle measurements + CTD table + complete YAML configuration"
   ],
-  "controller": "BASINS + Nextflow DSL2 \u2022 Local controller with task environments",
-  "execution": "run_basins_pipeline.sh \u2022 YAML configuration \u2022 Mamba environments \u2022 Native thread caps \u2022 Resume and stage-aware reruns",
+  "controller": "BASINS + Nextflow DSL2 • Local controller with task environments",
+  "execution": "run_basins_pipeline.sh • YAML configuration • Mamba environments • Native thread caps • Resume and stage-aware reruns",
   "rows": [
     {
-      "title": "Prepare observations",
+      "title": "Integrate observations",
       "nodes": [
         {
           "label": "Chemistry +\nCTD profiles",
@@ -15,71 +15,152 @@
           "kind": "input"
         },
         {
-          "label": "Match observations;\nresolve oxygen sources",
-          "tool": "",
+          "label": "Match profile / depth;\nresolve oxygen sources",
+          "tool": "Chemistry / CTD fallback",
           "kind": "compute"
         },
         {
-          "label": "Density, stratification\nand matrix preparation",
-          "tool": "",
+          "label": "Density, stratification\nand renewal metrics",
+          "tool": "GSW; N² / MLD / PEA",
           "kind": "compute"
         },
         {
-          "label": "Environmental features\nand physical metrics",
+          "label": "Merged measurements\nand physical context",
           "tool": "",
           "kind": "output"
         }
-      ]
+      ],
+      "note": ""
+    },
+    {
+      "title": "Prepare feature matrices",
+      "nodes": [
+        {
+          "label": "Environmental\nmeasurements",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Select variables;\nassess missingness",
+          "tool": "Core / sparse features",
+          "kind": "compute"
+        },
+        {
+          "label": "Fill depth profiles;\ntransform and scale",
+          "tool": "PCA preparation",
+          "kind": "compute"
+        },
+        {
+          "label": "Prepared matrices\nand processing audit",
+          "tool": "",
+          "kind": "output"
+        }
+      ],
+      "note": ""
     },
     {
       "title": "Define niche space",
       "nodes": [
         {
-          "label": "Prepared\nenvironmental matrix",
+          "label": "Prepared matrix +\noxygen measurements",
           "tool": "",
           "kind": "input"
         },
         {
-          "label": "PCA axes +\nGMM compartments",
-          "tool": "",
+          "label": "Environmental axes;\nmixture compartments",
+          "tool": "PCA; GMM; K selection",
           "kind": "compute"
         },
         {
-          "label": "Oxygen / hybrid assignments;\ncompare schemes",
-          "tool": "",
+          "label": "Oxygen / hybrid labels;\ncompare assignments",
+          "tool": "Membership strengths",
           "kind": "compute"
         },
         {
-          "label": "Coordinates, memberships\nand compartment diagnostics",
+          "label": "Scores, loadings and\ncompartment assignments",
           "tool": "",
           "kind": "output"
         }
-      ]
+      ],
+      "note": ""
     },
     {
-      "title": "Explore change",
+      "title": "Track temporal change",
       "nodes": [
         {
-          "label": "Profiles + assignments\nthrough time",
+          "label": "Compartments +\nprofile chronology",
           "tool": "",
           "kind": "input"
         },
         {
-          "label": "Transitions, succession\nand feature associations",
-          "tool": "",
+          "label": "Stratification anomalies;\nstate transitions",
+          "tool": "Succession / state graphs",
           "kind": "compute"
         },
         {
-          "label": "EOF cruise groups;\nwithin-group structure",
-          "tool": "",
+          "label": "Associate features\nwith environmental states",
+          "tool": "Feature associations",
           "kind": "compute"
         },
         {
-          "label": "Tables, figures +\nHTML run report",
+          "label": "Temporal patterns\nand diagnostic tables",
           "tool": "",
           "kind": "output"
         }
-      ]
+      ],
+      "note": ""
+    },
+    {
+      "title": "Resolve profile structure",
+      "nodes": [
+        {
+          "label": "Depth profiles +\nenvironmental matrix",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "EOF modes; cruise groups\nand stability assessment",
+          "tool": "Baseline removal; clustering",
+          "kind": "compute"
+        },
+        {
+          "label": "Within-group structure;\ntime-depth sections",
+          "tool": "HDBSCAN; optional sections",
+          "kind": "compute"
+        },
+        {
+          "label": "Cruise groups, substructure\nand profile figures",
+          "tool": "",
+          "kind": "output"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "title": "Review and export",
+      "nodes": [
+        {
+          "label": "Completed analyses\nand execution records",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Gather tables, figures\nand diagnostics",
+          "tool": "Master summary",
+          "kind": "compute"
+        },
+        {
+          "label": "Publish results\nand report navigation",
+          "tool": "Output inventory",
+          "kind": "compute"
+        },
+        {
+          "label": "HTML run report,\ntables, plots and logs",
+          "tool": "",
+          "kind": "output"
+        }
+      ],
+      "note": ""
     }
   ]
 }

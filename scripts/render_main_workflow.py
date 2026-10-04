@@ -55,14 +55,18 @@ def render(root, stem="main-workflow", output="workflow-main"):
     text(860,213,data['controller'],28)
     text(860,242,data['execution'],20)
     top=290
+    previous_y = None
     for index,(row,span) in enumerate(zip(data['rows'],heights),1):
         y=top+span/2-15
+        if previous_y is not None:
+            wire([(326, previous_y + 14), (326, y - 14)])
+        previous_y = y
         # Module names are explicitly wrapped to fit the same label column.
         import textwrap
         title='\n'.join(textwrap.wrap(row['title'],22))
         text(160,y-(len(title.split('\n'))-1)*15,title,27)
         rect(313,y-13,26,26,'#F5F5F5','#111111')
-        text(326,y+8,str(index),21)
+        text(326,y+7,str(index),20)
         if 'lanes' in row:
             ys=[y-64,y+64]
             wire([(339,y),(350,y)],False)

@@ -6,6 +6,8 @@
 
 [Download SVG](assets/workflow-main.svg) · [Download PDF](assets/workflow-main.pdf)
 
+The arrows connecting numbered modules show conceptual progression; they do not require independent analysis branches to execute serially.
+
 ## Conceptual overview
 
 [![Conceptual overview](assets/diagrams/conceptual.svg)](assets/diagrams/conceptual.svg)
