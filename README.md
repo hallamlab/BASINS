@@ -37,7 +37,7 @@ Open `examples/reviewer/output/summary/report/BASIN_run_report.html`. See the [u
 
 ## Workflow
 
-[![BASINS workflow](docs/assets/workflow-brief.svg)](https://hallamlab-basins.readthedocs.io/)
+[![BASINS workflow](docs/assets/workflow-brief.svg?v=b03731f2aacd)](https://hallamlab-basins.readthedocs.io/)
 
 For installation, input formats, reviewer checks, configuration, scientific interpretation, and HPC execution, see the **[user guide](https://hallamlab-basins.readthedocs.io/)**. A small Saanich Inlet reviewer dataset is bundled (Torres-Beltrán et al., 2017; [DOI](https://doi.org/10.1038/sdata.2017.159)).
 
