@@ -43,17 +43,18 @@ def render(root, stem="main-workflow", output="workflow-main"):
         text(x,y-25-(len(n['label'].split('\n'))-1)*25,n['label'])
         if n['tool']:text(x,y+37,n['tool'],18)
 
-    rect(20,20,975,130,'#DAE8FC','#6C8EBF',16)
-    text(45,51,'Inputs',28,'start')
-    for i,line in enumerate(data['inputs']):text(45,87+i*29,line,21,'start')
-    rect(1030,25,670,110,'#CCCCCC','#666666',16)
+    # Title first, then inputs and the symbol key; module geometry stays fixed.
+    rect(20,20,1680,78,'#CCCCCC','#666666',16)
+    text(860,53,data['controller'],28)
+    text(860,82,data['execution'],20)
+    rect(20,120,975,130,'#DAE8FC','#6C8EBF',16)
+    text(45,151,'Inputs',28,'start')
+    for i,line in enumerate(data['inputs']):text(45,187+i*29,line,21,'start')
+    rect(1030,120,670,110,'#CCCCCC','#666666',16)
     for x,label,kind in [(1090,'Module',None),(1220,'Compute','compute'),(1350,'Data','data'),(1480,'Input','input'),(1610,'Output','output')]:
-        text(x,57,label,21)
-        if kind:symbol(x,94,kind)
-        else:rect(x-12,82,24,24,'#F5F5F5','#111111')
-    rect(20,180,1680,78,'#CCCCCC','#666666',16)
-    text(860,213,data['controller'],28)
-    text(860,242,data['execution'],20)
+        text(x,152,label,21)
+        if kind:symbol(x,189,kind)
+        else:rect(x-12,177,24,24,'#F5F5F5','#111111')
     top=290
     previous_y = None
     for index,(row,span) in enumerate(zip(data['rows'],heights),1):
