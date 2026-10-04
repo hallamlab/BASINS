@@ -1,6 +1,4 @@
-# BASINS
-
-**Biochemical Analysis Suite for Investigating Niche Spaces**
+# BASINS: Biochemical Analysis Suite for Investigating Niche Spaces
 
 BASINS is a Nextflow workflow for integrating biogeochemical observations, characterizing environmental niche space.
 

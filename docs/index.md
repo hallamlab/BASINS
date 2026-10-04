@@ -1,6 +1,4 @@
-# BASINS
-
-BASINS stands for **Biochemical Analysis Suite for Investigating Niche Spaces**.
+# BASINS: Biochemical Analysis Suite for Investigating Niche Spaces
 
 Source repository: https://github.com/hallamlab/BASINS
 
