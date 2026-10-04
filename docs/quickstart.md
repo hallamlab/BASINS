@@ -1,5 +1,7 @@
 # Your first BASINS run
 
+For a first test without preparing inputs, use the [bundled Saanich Inlet reviewer example](reviewer-test.md).
+
 BASINS combines water-column chemistry with CTD observations. Prepare two tables before starting: a geochemistry table and a CTD table containing the matching profile identifiers and depths. Read the [input contract](inputs.md); the workflow does not infer arbitrary column names or convert arbitrary units.
 
 ## 1. Copy the configuration

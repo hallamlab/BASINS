@@ -1,0 +1,69 @@
+{
+  "selection": "All chemistry rows from 2009\u20132012 cruises with a matching CTD profile; all CTD rows with matching Cruise, Year, Month, Day. Original field values retained; CSV line endings normalized.",
+  "excluded_profiles_without_ctd": [
+    {
+      "Cruise": "41",
+      "Year": "2009",
+      "Month": "1",
+      "Day": "13"
+    },
+    {
+      "Cruise": "42",
+      "Year": "2010",
+      "Month": "2",
+      "Day": "10"
+    },
+    {
+      "Cruise": "44",
+      "Year": "2010",
+      "Month": "4",
+      "Day": "7"
+    }
+  ],
+  "cruises": 47,
+  "chemistry_depths": [
+    10.0,
+    20.0,
+    40.0,
+    60.0,
+    75.0,
+    80.0,
+    85.0,
+    90.0,
+    97.0,
+    100.0,
+    110.0,
+    120.0,
+    125.0,
+    130.0,
+    135.0,
+    140.0,
+    150.0,
+    160.0,
+    165.0,
+    170.0,
+    180.0,
+    185.0,
+    190.0,
+    200.0
+  ],
+  "article_doi": "10.1038/sdata.2017.159",
+  "dataset_doi": "10.5061/dryad.nh035",
+  "source_note": "Subset of the cleaned SI tables supplied by the BASINS authors; not a byte-for-byte extract of the archival Dryad files.",
+  "files": {
+    "chemistry.csv": {
+      "rows": 754,
+      "bytes": 96125,
+      "sha256": "77b74b862edadceab13f50969197ea32a874768e20730911acd9230dcba815a1",
+      "source_filename": "SI_JA_Compiled_Geochem_Dec_09_Outlier_RM.csv",
+      "source_sha256": "19b420ea08491c664c7f56f1aa164ced6b12086cc336c51660d1d76a2bc59fe2"
+    },
+    "ctd.csv": {
+      "rows": 10997,
+      "bytes": 1016623,
+      "sha256": "89abbb60ec37cfc479519d52ef869fddfd1b09d7ea9639a5d895da6e16f91053",
+      "source_filename": "SI_JA_Compiled_CTD_Data_Dec_18_2025_Outlier_RM.csv",
+      "source_sha256": "8bfb81d747b4ab6eed0ffad810270cd106054916f4e373c20bd0e583ec37d85c"
+    }
+  }
+}

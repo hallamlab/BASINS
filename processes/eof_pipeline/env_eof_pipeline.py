@@ -1121,7 +1121,12 @@ def run_eof_pipeline(
                         "coverage": cov,
                     })
 
-        eof_sparse_corr_df = pd.DataFrame(eof_sparse_corr_rows)
+        # Preserve the output schema when all usable features are core features.
+        # The biplot accepts an empty sparse table, but still needs its columns.
+        eof_sparse_corr_df = pd.DataFrame(
+            eof_sparse_corr_rows,
+            columns=["feature", "PC", "spearman_r", "n_cruises_used", "coverage"],
+        )
         eof_sparse_corr_df.to_csv(os.path.join(tables_dir, "eof_sparse_feature_pc_spearman.csv"), index=False)
         # ----------------------------------------------------------------------
 

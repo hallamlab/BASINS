@@ -72,3 +72,6 @@ reports/
 # Public documentation builds (never stage local manuscript material)
 /_build/
 /docs/_build/
+
+# Reviewer-generated results and caches
+/examples/reviewer/output/

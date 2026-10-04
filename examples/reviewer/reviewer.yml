@@ -1,0 +1,154 @@
+# Run from the repository: ./run_basins_pipeline.sh examples/reviewer/reviewer.yml
+paths:
+  output_dir: output
+  keep_runtime_dir: true
+resources:
+  threads: 4
+  math_threads: 2
+  max_concurrent_tasks: 2
+biochem:
+  enabled: true
+  table_a: data/chemistry.csv
+  table_b: data/ctd.csv
+  ctd_max_depth_diff_m: 10.0
+  output_root: null
+  cleaned_density_filename: 02_oxygen_best_available_density_RJM.tsv
+  clean_keep_cols:
+  - cruise_year_month_depth
+  - Cruise
+  - Year
+  - Month
+  - Day
+  - Depth
+  - Phosphate
+  - Silicate
+  - Nitrite
+  - Nitrate
+  - Ammonium
+  - Hydrogen Sulfide
+  - Nitrous Oxide
+  - Methane
+  - Temperature
+  - Salinity
+  - Oxygen
+  - Density
+  - Iron
+  - Dimethyl Sulfide
+  clean_drop_cols: []
+  clean_rename_map:
+    PO4: Phosphate
+    SI: Silicate
+    NO2: Nitrite
+    NO3: Nitrate
+    NH4: Ammonium
+    H2S: Hydrogen Sulfide
+    N2O: Nitrous Oxide
+    CH4: Methane
+    DMS: Dimethyl Sulfide
+    Fe: Iron
+    Oxygen_best_available: Oxygen
+    density_kg_m3: Density
+  feature_cols: Oxygen,Nitrate,Nitrite,Nitrous Oxide,Ammonium,Hydrogen Sulfide,Methane,Phosphate,Silicate,Temperature,Salinity,Density,Iron,Dimethyl
+    Sulfide
+  missingness_cutoff: 0.2
+  missingness_sensitivity_enabled: false
+  missingness_sensitivity_thresholds:
+  - 0.1
+  - 0.15
+  - 0.2
+  - 0.25
+  - 0.3
+  - 0.35
+  - 0.4
+  missingness_sensitivity_pc_parallel_replicates: 100
+  missingness_sensitivity_pc_stability_replicates: 100
+  missingness_sensitivity_gmm_stability_replicates: 100
+  missingness_sensitivity_min_gmm_ari: 0.7
+  gmm_k: auto
+  eof_pcs: 1,2
+  eof_k_min: 2
+  eof_k_max: 4
+  eof_covariance_type: tied
+  # Demonstration only: the short subset does not meet the production 0.50 threshold.
+  eof_stability_min_ari: 0.4
+  eof_assignment_prob_threshold: 0.8
+  eof_min_cluster_frac: 0.1
+  eof_min_cluster_n: 5
+  eof_baseline_months: 24
+  eof_baseline_min_cruises: 5
+  pea_bootstrap_iterations: 500
+  pea_random_state: 42
+  physical_regime_k_max: 6
+  deep_intrusion_quantile: 0.9
+  oxygen_low_compartment_max: 90.0
+  oxygen_intrusion_bottom_n: 3
+  oxygen_intrusion_onset_threshold: 4.5
+  oxygen_intrusion_persistence_threshold: 4.5
+  oxygen_intrusion_end_consecutive: 2
+  renewal_nitrate_col: Nitrate
+  renewal_nitrate_bottom_n: 3
+  renewal_nitrate_min_depths: 2
+  renewal_nitrate_detection_limit: 0.0
+  renewal_bridge_enabled: true
+  renewal_bridge_max_cruises: 2
+  renewal_bridge_max_days: 150
+continuous_sections:
+  enabled: true
+  output_dir: env_continuous_sections
+  variables:
+  - Oxygen
+  - Nitrate
+  - Nitrite
+  - Nitrous Oxide
+  - Ammonium
+  - Hydrogen Sulfide
+  - Methane
+  - Phosphate
+  - Silicate
+  - Temperature
+  - Salinity
+  - Density
+  - Iron
+  - Dimethyl Sulfide
+  date_col: date
+  depth_col: Depth_anchored
+  maximum_depth_m: 210
+  depth_step_m: 1
+  time_step_days: 7
+  max_time_support_days: 90
+  max_depth_support_m: 30
+  minimum_samples: 4
+  levels: 64
+  formats:
+  - pdf
+  - png
+  - svg
+gapseq_media:
+  enabled: false
+genome_modeling:
+  enabled: false
+master_summary:
+  enabled: true
+environments:
+  biochem: ../../processes/shared_envs/biochem.yml
+  biochem_merge: ../../processes/shared_envs/biochem.yml
+  biochem_density: ../../processes/shared_envs/biochem.yml
+  biochem_strat_metrics: ../../processes/shared_envs/biochem.yml
+  biochem_custom_clean: ../../processes/shared_envs/biochem.yml
+  biochem_eigenvectors: ../../processes/shared_envs/biochem.yml
+  biochem_continuous_sections: ../../processes/shared_envs/biochem.yml
+  biochem_selectk: ../../processes/shared_envs/biochem.yml
+  biochem_gmm: ../../processes/shared_envs/biochem.yml
+  biochem_o2_soft: ../../processes/shared_envs/biochem.yml
+  biochem_hybrid: ../../processes/shared_envs/biochem.yml
+  biochem_compare: ../../processes/shared_envs/biochem.yml
+  biochem_split_o2_by_gmm: ../../processes/shared_envs/biochem.yml
+  biochem_strat_anomaly: ../../processes/shared_envs/biochem.yml
+  biochem_state_transitions: ../../processes/shared_envs/biochem.yml
+  biochem_succession: ../../processes/shared_envs/biochem.yml
+  biochem_feature_assoc: ../../processes/shared_envs/biochem.yml
+  biochem_eof_pipeline: ../../processes/shared_envs/biochem.yml
+  biochem_eof_state_cluster: ../../processes/shared_envs/biochem.yml
+  biochem_eof_mode_plots: ../../processes/shared_envs/biochem.yml
+  biochem_within_gmm: ../../processes/shared_envs/biochem.yml
+  master_summary: ../../processes/shared_envs/biochem.yml

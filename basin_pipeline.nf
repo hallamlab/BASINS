@@ -43,7 +43,8 @@ if( providedConfigPath ) {
     log.info "Loaded default config from ${configFile}"
 }
 
-def resolvePath(String pathValue) {
+// A closure captures the selected configuration directory; a script method does not.
+def resolvePath = { String pathValue ->
     if( !pathValue ) {
         return null
     }

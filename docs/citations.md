@@ -14,3 +14,7 @@ Record the BASINS repository revision or release with your methods, and cite the
 | Matplotlib / seaborn / NetworkX | Figures and graph analysis | [Matplotlib](https://matplotlib.org/), [seaborn](https://seaborn.pydata.org/), [NetworkX](https://networkx.org/). |
 
 Mamba manages software environments; see the [Mamba project](https://github.com/mamba-org/mamba). Record environment specifications and actual versions alongside scientific citations.
+
+## Reviewer observations
+
+The bundled Saanich Inlet subset uses observations described by Torres-Beltrán, M. et al. (2017), *A compendium of geochemical information from the Saanich Inlet water column*, Scientific Data 4, 170159. [DOI](https://doi.org/10.1038/sdata.2017.159); [article](https://www.nature.com/articles/sdata2017159). The associated Dryad dataset was published by Torres-Beltrán, M., Hawley, A. K., Capelle, D. et al. (2018). [Dataset DOI](https://doi.org/10.5061/dryad.nh035); [dataset website](https://datadryad.org/dataset/doi:10.5061/dryad.nh035). See [reviewer data provenance](reviewer-test.md#data-provenance) for the cleaned source tables and selection rule.
