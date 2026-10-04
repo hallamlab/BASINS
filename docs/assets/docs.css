@@ -1,4 +1,8 @@
-.wy-nav-content {max-width:1150px;}
-.rst-content img[src*="workflow-main"] {display:block;width:100%;max-width:100%;height:auto;margin:1.5rem auto;}
-.rst-content img[src*="/diagrams/"] {display:block;width:100%;max-width:100%;height:auto;margin:1.5rem auto;}
-.rst-content table.docutils td {vertical-align:top;}
+.wy-nav-content { max-width: 1150px; }
+.wy-table-responsive table td, .wy-table-responsive table th { white-space: normal; }
+.rst-content img { height: auto; }
+/* Shared canvases keep the supporting diagrams centered at a consistent scale. */
+.rst-content img[src*="/diagrams/"] { display: block; width: 100%; max-width: 100%; height: auto; margin: 1.5rem auto; }
+/* The main workflow fills the available page width, as in MP and ASPIRE. */
+.wy-nav-content:has(.primary-workflow) { max-width: none; padding-left: 12px; padding-right: 12px; }
+.primary-workflow img { display: block; width: 100%; max-width: 100%; height: auto; margin: 1.5rem auto; }

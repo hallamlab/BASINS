@@ -31,3 +31,19 @@ No credentials belong in this repository. The YAML installs only documentation d
 The public user-guide diagrams are in `docs/assets/`; Mermaid sources are in `docs/diagrams/`. They describe software behavior and are independent of unpublished manuscript figures. Main workflow SVG/PDF assets and white-background Mermaid previews stay readable in light and dark viewers. The secondary diagrams share a common canvas scale and are centered; click a preview to zoom.
 
 To rebuild diagrams, install `docs/diagram-requirements.txt`, install Chromium with `python -m playwright install chromium`, then run `python scripts/render_workflow_diagrams.py`. The renderer downloads the pinned Mermaid library; ordinary documentation builds use the committed previews without a browser or network renderer.
+
+## Workflow figures
+
+The main SVG and PDF are generated from `docs/diagrams/main-workflow.json` by
+`scripts/render_main_workflow.py`. The renderer uses the MP/ASPIRE conventions:
+Times typography, numbered modules, computational diamonds, data circles,
+blue inputs, green outputs, black arrows and an opaque white background.
+The detailed workflow chapter maps the displayed stages to the public code.
+
+After changing the JSON or Mermaid sources, install
+`docs/diagram-requirements.txt`, install Playwright Chromium, and run
+`python scripts/render_workflow_diagrams.py` from the repository root.
+Review both the generated SVG and PDF. Main figures use their own tight canvas
+at full page width; supporting diagrams share a centered 2240-unit canvas.
+Do not copy unpublished manuscript figures or numerical results into these
+public software diagrams.

@@ -1,17 +1,87 @@
-"""Draw the public workflow SVG from its versioned JSON description."""
-import html,json
+"""Render a code-based software workflow in the shared Hallam documentation style.
+
+The JSON describes public software behavior, not manuscript results. Module rows
+are conceptual groups; branching lanes represent evidence that converges.
+"""
+import html
+import json
+
 
 def render(root):
-    data=json.loads((root/'docs/diagrams/main-workflow.json').read_text())
-    name,rows=data['title'],data['rows']
-    width,height=1400,110+len(rows)*172
-    colors=['#d9e5ef','#eadff0','#dceadb','#f5e5cb','#e3e3ef','#d6e9e7','#eedfdc','#e1e1e1']
-    parts=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img">',f'<title>{name} complete workflow</title>','<rect width="100%" height="100%" fill="white"/>','<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#666"/></marker></defs>',f'<text x="700" y="46" text-anchor="middle" font-family="Georgia,serif" font-size="32" font-weight="bold">{name} workflow</text>']
-    for i,(a,b,c) in enumerate(rows):
-        y=80+i*172
-        parts += [f'<rect x="22" y="{y}" width="1356" height="142" rx="12" fill="{colors[i%len(colors)]}" stroke="#777" stroke-width="2"/>',f'<text x="48" y="{y+35}" font-family="Georgia,serif" font-size="25" font-weight="bold">{i+1}. {html.escape(a)}</text>',f'<text x="48" y="{y+77}" font-family="Georgia,serif" font-size="25">{html.escape(b)}</text>',f'<text x="48" y="{y+115}" font-family="Georgia,serif" font-size="22">{html.escape(c)}</text>']
-        if i<len(rows)-1: parts += [f'<path d="M700 {y+142} V{y+172}" stroke="#666" stroke-width="2.5" fill="none" marker-end="url(#arrow)"/>']
-    parts+=['</svg>']
+    data = json.loads((root / 'docs/diagrams/main-workflow.json').read_text())
+    width = 1720
+    heights = [290 if 'lanes' in row else 190 for row in data['rows']]
+    height = 310 + sum(heights)
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-labelledby="title desc">',
+             f'<title id="title">{data["title"]} complete software workflow</title>',
+             '<desc id="desc">Numbered conceptual modules with inputs, computational steps, data products and optional branches. See the workflow guide for source-code references and execution order.</desc>',
+             '<rect width="100%" height="100%" fill="#ffffff"/>',
+             '<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="#111111"/></marker></defs>',
+             '<g font-family="Times New Roman, Times, serif" fill="#111111">']
+
+    def text(x, y, label, size=22, anchor='middle'):
+        for i, line in enumerate(label.split('\n')):
+            parts.append(f'<text x="{x}" y="{y+i*(size+3)}" font-size="{size}" text-anchor="{anchor}">{html.escape(line)}</text>')
+
+    def rect(x,y,w,h,fill,stroke,rx=0):
+        parts.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>')
+
+    def wire(points, arrow=True):
+        path='M'+' L'.join(f'{x} {y}' for x,y in points)
+        marker=' marker-end="url(#arrow)"' if arrow else ''
+        parts.append(f'<path d="{path}" fill="none" stroke="#111111" stroke-width="1.5"{marker}/>')
+
+    def symbol(x,y,kind):
+        if kind=='compute':
+            parts.append(f'<path d="M{x-13} {y} L{x} {y-13} L{x+13} {y} L{x} {y+13} Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>')
+        else:
+            fill,stroke={'input':('#DAE8FC','#6C8EBF'),'output':('#D5E8D4','#82B366'),'data':('#F5F5F5','#666666')}[kind]
+            parts.append(f'<circle cx="{x}" cy="{y}" r="12" fill="{fill}" stroke="{stroke}" stroke-width="3"/>')
+
+    def node(x,y,n):
+        symbol(x,y,n['kind'])
+        text(x,y-25-(len(n['label'].split('\n'))-1)*25,n['label'])
+        if n['tool']:text(x,y+37,n['tool'],18)
+
+    rect(20,20,975,130,'#DAE8FC','#6C8EBF',16)
+    text(45,51,'Inputs',28,'start')
+    for i,line in enumerate(data['inputs']):text(45,87+i*29,line,21,'start')
+    rect(1030,25,670,110,'#CCCCCC','#666666',16)
+    for x,label,kind in [(1090,'Module',None),(1220,'Compute','compute'),(1350,'Data','data'),(1480,'Input','input'),(1610,'Output','output')]:
+        text(x,57,label,21)
+        if kind:symbol(x,94,kind)
+        else:rect(x-12,82,24,24,'#F5F5F5','#111111')
+    rect(20,180,1680,78,'#CCCCCC','#666666',16)
+    text(860,213,data['controller'],28)
+    text(860,242,data['execution'],20)
+    top=290
+    for index,(row,span) in enumerate(zip(data['rows'],heights),1):
+        y=top+span/2-15
+        # Module names are explicitly wrapped to fit the same label column.
+        import textwrap
+        title='\n'.join(textwrap.wrap(row['title'],22))
+        text(160,y-(len(title.split('\n'))-1)*15,title,27)
+        rect(313,y-13,26,26,'#F5F5F5','#111111')
+        text(326,y+8,str(index),21)
+        if 'lanes' in row:
+            ys=[y-64,y+64]
+            wire([(339,y),(380,y)],False)
+            for lane,ly in zip(row['lanes'],ys):
+                wire([(380,y),(380,ly),(448,ly)])
+                for x,n in zip([460,820,1160],lane):node(x,ly,n)
+                wire([(473,ly),(807,ly)])
+                wire([(833,ly),(1147,ly)])
+                wire([(1173,ly),(1370,ly),(1370,y)],False)
+            wire([(1370,y),(1548,y)])
+            node(1560,y,dict(label=row['result'],tool='',kind='output'))
+        else:
+            nodes=row['nodes'];xs=[460+i*1100/(len(nodes)-1) for i in range(len(nodes))]
+            wire([(339,y),(448,y)])
+            for x,n in zip(xs,nodes):node(x,y,n)
+            for a,b in zip(xs,xs[1:]):wire([(a+13,y),(b-13,y)])
+        if row.get('note'):text(1010,top+span-12,row['note'],18)
+        top+=span
+    parts.extend(['</g>','</svg>'])
     source=root/'docs/assets/workflow-main.svg'
     source.write_text('\n'.join(parts)+'\n')
     return source,width,height

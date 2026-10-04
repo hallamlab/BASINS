@@ -8,7 +8,9 @@ BASINS is a Nextflow DSL2 workflow for integrating biogeochemical observations a
 
 Start with [installation](installation.md) and the [first-run walkthrough](quickstart.md). Then use the input, interpretation, and configuration chapters to adapt BASINS to your own study.
 
+```{container} primary-workflow
 [![BASINS workflow](assets/workflow-main.svg)](assets/workflow-main.svg)
+```
 
 ```{toctree}
 :maxdepth: 2

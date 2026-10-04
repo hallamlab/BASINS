@@ -1,45 +1,368 @@
 {
   "title": "BASINS",
+  "inputs": [
+    "Geochemistry / bottle measurements + CTD table + complete YAML configuration",
+    "Optional: basal media, genome FASTAs and manifest, genome metadata / abundances"
+  ],
+  "controller": "BASINS + Nextflow DSL2 • Local controller with task environments",
+  "execution": "run_basins_pipeline.sh • YAML configuration • Mamba environments • Native thread caps • Resume and stage-aware reruns",
   "rows": [
-    [
-      "Environmental observations",
-      "Chemistry + CTD profiles",
-      "Match profile keys and nearest depth; reconcile oxygen measurements."
-    ],
-    [
-      "Physical water-column structure",
-      "Density, stratification, and renewal",
-      "GSW density; N\u00b2, mixed-layer depth, PEA, oxygen/nitrate event diagnostics."
-    ],
-    [
-      "Environmental feature matrix",
-      "Cleaning, missingness, and PCA",
-      "Select numeric chemistry; optional missingness sensitivity; scores and loadings."
-    ],
-    [
-      "Environmental compartments",
-      "GMM, oxygen, and hybrid schemes",
-      "Select K; fit responsibilities; combine assignments; compare and subdivide states."
-    ],
-    [
-      "Temporal and ecological context",
-      "Transitions, succession, and feature associations",
-      "Track environmental states; quantify associated measurements and temporal changes."
-    ],
-    [
-      "Cruise structure and refinement",
-      "EOF groups and within-GMM HDBSCAN",
-      "Baseline-adjusted profiles; stability and season checks; optional continuous sections."
-    ],
-    [
-      "Optional metabolic modeling",
-      "Environmental media + genome reconstruction",
-      "gapseq fixed models; COBRApy growth, exchange FVA, nutrient counterfactuals."
-    ],
-    [
-      "Published results",
-      "Tables, figures, provenance, and HTML report",
-      "Nextflow completion \u2192 atomic publication into modules, summary, and logs."
-    ]
+    {
+      "title": "Observation integration",
+      "note": "",
+      "nodes": [
+        {
+          "label": "Chemistry +\nCTD records",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Match profile keys\nand nearest depth",
+          "tool": "BIOCHEM_MERGE",
+          "kind": "compute"
+        },
+        {
+          "label": "Resolve oxygen\nsource and provenance",
+          "tool": "CTD / chemistry fallback",
+          "kind": "compute"
+        },
+        {
+          "label": "Merged observations\nand match diagnostics",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Physical structure",
+      "note": "",
+      "nodes": [
+        {
+          "label": "Merged\nobservations",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Calculate seawater\ndensity",
+          "tool": "GSW",
+          "kind": "compute"
+        },
+        {
+          "label": "Derive water-column\nstructure",
+          "tool": "N²; MLD; PEA",
+          "kind": "compute"
+        },
+        {
+          "label": "Evaluate renewal\nevent criteria",
+          "tool": "oxygen / nitrate; persistence",
+          "kind": "compute"
+        },
+        {
+          "label": "Density, stratification\nand renewal tables",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Matrix engineering",
+      "note": "",
+      "nodes": [
+        {
+          "label": "Merged chemistry +\nphysical variables",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Rename / select\nnumeric measurements",
+          "tool": "configured feature set",
+          "kind": "compute"
+        },
+        {
+          "label": "Assess missingness\nand cutoff sensitivity",
+          "tool": "optional sensitivity stage",
+          "kind": "compute"
+        },
+        {
+          "label": "Depth-profile filling;\ntransform + scale",
+          "tool": "PCA preparation",
+          "kind": "compute"
+        },
+        {
+          "label": "Core / sparse matrices\nand preparation audit",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Environmental axes",
+      "note": "",
+      "nodes": [
+        {
+          "label": "Prepared\nfeature matrix",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Fit principal\ncomponents",
+          "tool": "PCA",
+          "kind": "compute"
+        },
+        {
+          "label": "Export loadings\nand sample scores",
+          "tool": "variance / diagnostics",
+          "kind": "compute"
+        },
+        {
+          "label": "PCA scores and\nfeature contributions",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Environmental compartments",
+      "note": "",
+      "nodes": [
+        {
+          "label": "PCA scores +\noxygen measurements",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Select K + fit\nmixture components",
+          "tool": "GMM",
+          "kind": "compute"
+        },
+        {
+          "label": "Assign soft\noxygen categories",
+          "tool": "configured thresholds",
+          "kind": "compute"
+        },
+        {
+          "label": "Combine oxygen\nand GMM membership",
+          "tool": "hybrid compartments",
+          "kind": "compute"
+        },
+        {
+          "label": "Assignments +\nmembership strengths",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Compartment comparison",
+      "note": "",
+      "nodes": [
+        {
+          "label": "Oxygen, GMM +\nhybrid assignments",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Compare schemes\nand profile structure",
+          "tool": "BIOCHEM_COMPARE",
+          "kind": "compute"
+        },
+        {
+          "label": "Subdivide oxygen\ncategories by GMM",
+          "tool": "BIOCHEM_SPLIT_O2_BY_GMM",
+          "kind": "compute"
+        },
+        {
+          "label": "Cross-scheme\ncomparison tables",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Temporal structure",
+      "note": "",
+      "nodes": [
+        {
+          "label": "Compartment labels +\nprofile chronology",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Characterize\nstratification anomalies",
+          "tool": "BIOCHEM_STRAT_ANOMALY",
+          "kind": "compute"
+        },
+        {
+          "label": "Summarize transitions\nand succession",
+          "tool": "state graph",
+          "kind": "compute"
+        },
+        {
+          "label": "Associate features\nwith states",
+          "tool": "BIOCHEM_FEATURE_ASSOC",
+          "kind": "compute"
+        },
+        {
+          "label": "Temporal diagnostics +\nfeature associations",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Cruise-scale structure",
+      "note": "",
+      "nodes": [
+        {
+          "label": "Environmental\ndepth profiles",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Remove baseline;\nconstruct EOF representation",
+          "tool": "BIOCHEM_EOF_PIPELINE",
+          "kind": "compute"
+        },
+        {
+          "label": "Group cruises;\nassess stability",
+          "tool": "BIOCHEM_EOF_STATE_CLUSTER",
+          "kind": "compute"
+        },
+        {
+          "label": "Inspect modes and\nseason relationships",
+          "tool": "BIOCHEM_EOF_MODE_PLOTS",
+          "kind": "compute"
+        },
+        {
+          "label": "Cruise groups +\nmode diagnostics",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Local structure",
+      "note": "",
+      "nodes": [
+        {
+          "label": "Environmental matrix +\nGMM assignments",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Explore within-group\ndensity structure",
+          "tool": "HDBSCAN",
+          "kind": "compute"
+        },
+        {
+          "label": "Render continuous\ntime-depth sections",
+          "tool": "optional section stage",
+          "kind": "compute"
+        },
+        {
+          "label": "Substructure tables +\ncontinuous sections",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Model and media inputs",
+      "note": "Optional: reconstructed genomes and environmental media converge for comparison",
+      "lanes": [
+        [
+          {
+            "label": "Group chemistry +\nbasal medium",
+            "tool": "",
+            "kind": "input"
+          },
+          {
+            "label": "Build supported\nmedia recipes",
+            "tool": "BIOCHEM_GAPSEQ_MEDIA",
+            "kind": "compute"
+          },
+          {
+            "label": "Audit ingredients\nand exclusions",
+            "tool": "recipe provenance",
+            "kind": "compute"
+          }
+        ],
+        [
+          {
+            "label": "Genome FASTAs +\nmanifest",
+            "tool": "",
+            "kind": "input"
+          },
+          {
+            "label": "Reconstruct and\ngap-fill each genome",
+            "tool": "gapseq",
+            "kind": "compute"
+          },
+          {
+            "label": "Keep each\nreconstructed model fixed",
+            "tool": "one model per genome",
+            "kind": "compute"
+          }
+        ]
+      ],
+      "result": "Media recipes +\nfixed genome models"
+    },
+    {
+      "title": "Metabolic comparisons",
+      "note": "Optional: genome tasks scatter; predictions depend on reconstruction and medium assumptions",
+      "nodes": [
+        {
+          "label": "Fixed models +\nenvironmental media",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Apply medium to\nmodel copies",
+          "tool": "COBRApy",
+          "kind": "compute"
+        },
+        {
+          "label": "Predict growth +\nexchange variability",
+          "tool": "FBA; FVA",
+          "kind": "compute"
+        },
+        {
+          "label": "Test nutrient\ncounterfactuals",
+          "tool": "configured comparisons",
+          "kind": "compute"
+        },
+        {
+          "label": "Per-genome results +\ncombined model tables",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Results and report",
+      "note": "Environmental stages are ordered; diagrams group methods rather than prescribe scheduling",
+      "nodes": [
+        {
+          "label": "Completed analyses +\noptional model results",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Gather supported\nscientific products",
+          "tool": "MASTER_SUMMARY",
+          "kind": "compute"
+        },
+        {
+          "label": "Publish coherent\noutput tree",
+          "tool": "controller; atomic publication",
+          "kind": "compute"
+        },
+        {
+          "label": "Tables, plots, logs +\nBASIN_run_report.html",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    }
   ]
 }
