@@ -19,6 +19,7 @@ def main():
     config = json.loads((ROOT / 'docs/diagrams/figures.json').read_text())
     from render_main_workflow import render
     main_svg, main_width, main_height = render(ROOT)
+    brief_svg, brief_width, brief_height = render(ROOT, "brief-workflow", "workflow-brief")
     rendered = []
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -37,6 +38,8 @@ def main():
             rendered.append((item['name'], ET.fromstring(svg), config['mermaid_scale']))
         page.set_content('<html><head><style>html,body{margin:0;padding:0;}svg{display:block}</style></head><body>'+main_svg.read_text()+'</body></html>')
         page.pdf(path=str(main_svg.with_suffix('.pdf')), width=f'{main_width}px', height=f'{main_height}px', print_background=True, margin=dict(top='0',right='0',bottom='0',left='0'))
+        page.set_content('<html><head><style>html,body{margin:0;padding:0;}svg{display:block}</style></head><body>'+brief_svg.read_text()+'</body></html>')
+        page.pdf(path=str(brief_svg.with_suffix('.pdf')), width=f'{brief_width}px', height=f'{brief_height}px', print_background=True, margin=dict(top='0',right='0',bottom='0',left='0'))
         browser.close()
     for name in []:
         source = ROOT / 'docs/assets' / (name + '.svg')

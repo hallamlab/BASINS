@@ -9,10 +9,4 @@ flowchart TB
  G --> H["Anomalies → transitions → succession → feature associations"]
  H --> I["EOF profiles, cruise groups, stability and seasonal checks"]
  I --> J["Within-GMM HDBSCAN + optional continuous sections"]
- I -.-> K["Optional: basal medium + group chemistry recipes"]
- L["Optional genome FASTAs + manifest"] --> M["gapseq: fixed reconstructed models"]
- K --> N["COBRApy: growth, FVA, counterfactuals"]
- M --> N
- N --> O["Cross-genome comparisons"]
  J --> P["Master summary + publication"]
- O --> P

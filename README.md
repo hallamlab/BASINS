@@ -1,12 +1,10 @@
 # BASINS
 
-BASINS stands for **Biochemical Analysis Suite for Investigating Niche Spaces**.
+**Biochemical Analysis Suite for Investigating Niche Spaces**
 
-Source repository: https://github.com/hallamlab/BASINS
+BASINS is a Nextflow workflow for integrating biogeochemical observations, characterizing environmental niche space.
 
-BASINS is a Nextflow DSL2 workflow for integrating biogeochemical observations and characterizing environmental niche space. It builds cleaned environmental feature matrices, computes density and stratification summaries, derives PCA/EOF structure, assigns oxygen/GMM/hybrid compartments, and writes downstream compartment diagnostics. It can also train gapseq-compatible media from the final core+sparse biochemical matrix, reconstruct fixed genome-scale models with gapseq 2.1.0, and compare those models across supported media.
-
-[User guide](docs/index.md) · [Configuration reference](docs/CONFIGURATION.md) · [Issues and feature requests](https://github.com/hallamlab/BASINS/issues)
+**[Read the full user guide on Read the Docs](https://hallamlab-basins.readthedocs.io/)**
 
 ## Quick start
 
@@ -18,28 +16,18 @@ cd BASINS
 cp basin_pipeline_nextflow.yml my_run.yml
 ```
 
-Edit `my_run.yml`: set your output directory, geochemistry CSV, and CTD CSV; remove or replace every `/abs/path/` placeholder. See the [first-run walkthrough](docs/quickstart.md) for the small set of fields to configure first.
+Follow the user guide to set your output directory and geochemistry/CTD input files in `my_run.yml`, replacing the example paths. Then run:
 
 ```bash
 ./run_basins_pipeline.sh my_run.yml
 ```
 
-The launcher creates its controller environment and Nextflow creates the analysis environments with Mamba. First installation needs internet access. No manually exported runtime variables are required.
-
-Open `YOUR_OUTPUT/summary/report/BASIN_run_report.html` after successful completion. Start with the summary and module tables before interpreting the figures.
+The launcher and Nextflow create the required environments with Mamba. Open `YOUR_OUTPUT/summary/report/BASIN_run_report.html` after completion.
 
 ## Workflow
 
-[![BASINS workflow](docs/assets/workflow-main.svg)](docs/assets/workflow-main.svg)
+[![BASINS workflow](docs/assets/workflow-brief.svg)](https://hallamlab-basins.readthedocs.io/)
 
-[Detailed workflow, architecture, and data flow](docs/workflow.md) · [SVG](docs/assets/workflow-main.svg) · [PDF](docs/assets/workflow-main.pdf)
+For installation, input formats, reviewer checks, configuration, scientific interpretation, and HPC execution, see the **[user guide](https://hallamlab-basins.readthedocs.io/)**. The repository includes focused test fixtures but does not bundle a complete environmental reviewer dataset.
 
-## Reviewer and example runs
-
-The repository includes configuration examples and focused test fixtures. It does **not** bundle an end-to-end environmental reviewer dataset. The Saanich Inlet configuration contains study-specific paths and is not a downloadable demo. Follow the [reviewer guide](docs/reviewer-test.md) to validate installation and prepare a representative input pair.
-
-## Full documentation
-
-The [user guide](docs/index.md) covers [input preparation](docs/inputs.md), [configuration](docs/CONFIGURATION.md), [scientific interpretation](docs/analyses.md), [optional genome modeling](docs/genome-modeling.md), and [resources and resuming runs](docs/resources.md).
-
-Documentation source lives in `docs/`. [Report issues or request features](https://github.com/hallamlab/BASINS/issues).
+[Report issues or request features](https://github.com/hallamlab/BASINS/issues). Documentation source is maintained in `docs/`.

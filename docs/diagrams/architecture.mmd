@@ -5,8 +5,6 @@ flowchart TB
  C --> D["Nextflow DSL2 dependency graph"]
  D --> E["Scientific process environments"]
  E --> F["Environmental stages: ordered dependencies"]
- E --> G["Optional genome tasks: scatter by genome"]
  F --> H["Publication staging + Nextflow logs/cache"]
- G --> H
  H --> I["Successful run: atomic output publication"]
- D -. "site configuration" .-> J["Cluster executor + shared paths"]
+ D -.-> J["Site configuration: cluster executor + shared paths"]

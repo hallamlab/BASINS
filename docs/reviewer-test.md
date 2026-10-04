@@ -14,10 +14,10 @@ After installing the prerequisites, run this from the checkout:
 ./run_basins_pipeline.sh tests/fixtures/disabled_pipeline.yml --no-resume
 ```
 
-The disabled fixture writes to `/tmp/basins_disabled_pipeline_test` and disables biochemical analysis, media, and summary generation. Copy it and change the output path if that location is already in use. This checks controller bootstrap and workflow launch only; it does not validate scientific results or exercise all analysis environments.
+The disabled fixture writes to `/tmp/basins_disabled_pipeline_test` and disables analysis and summary generation. Copy it and change the output path if that location is already in use. This checks controller bootstrap and workflow launch only; it does not validate scientific results or exercise all analysis environments.
 
 ## A representative scientific review
 
-Use a pair of chemistry/CTD tables you are allowed to distribute, spanning several cruises and depths. Prepare the input contract and complete configuration as described in [quickstart](quickstart.md). Keep optional modeling disabled initially. Inspect merged matches, missingness, density, matrix dimensions, PCA loadings, clustering diagnostics, and assignment coverage. Keep the configuration, software revision, logs, and source-data provenance with the review.
+Use a pair of chemistry/CTD tables you are allowed to distribute, spanning several cruises and depths. Prepare the input contract and complete configuration as described in [quickstart](quickstart.md). Inspect merged matches, missingness, density, matrix dimensions, PCA loadings, clustering diagnostics, and assignment coverage. Keep the configuration, software revision, logs, and source-data provenance with the review.
 
 A distributable scientific reviewer bundle needs data provenance, a stable download, and validated expected output checks. Until that bundle exists, do not describe a disabled run as an end-to-end scientific test.

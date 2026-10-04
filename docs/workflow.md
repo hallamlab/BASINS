@@ -24,7 +24,7 @@
 
 [Zoom diagram](assets/diagrams/data-flow.svg) · [Mermaid source](diagrams/data-flow.mmd)
 
-The full [process reference](process-reference.md) maps each stage to its script. The environmental path has ordered dependencies; optional genome reconstruction and media comparisons scatter by genome and converge before the summary. The diagram groups closely related stages for readability. [Interpretation](analyses.md), [genome modeling](genome-modeling.md), and [citations](citations.md) explain the methods and their limits.
+The full [process reference](process-reference.md) maps each stage to its script. The environmental path has ordered dependencies; results converge before the summary. The diagram groups closely related stages for readability. [Interpretation](analyses.md) and [citations](citations.md) explain the methods and their limits.
 
 ## What BASINS estimates
 
@@ -33,11 +33,6 @@ water-column observations. Its core products are environmental coordinates,
 compartment memberships and profile/cruise diagnostics. An environmental
 compartment is a model-derived description of observations, not a direct
 measurement of a microbial population or proof of a biological niche boundary.
-
-The optional genome branch asks a different question: how a fixed reconstructed
-metabolic model responds to media derived from those environmental groups.
-Keep the measured, statistically inferred and metabolically predicted products
-separate when interpreting the output.
 
 ## Follow one observation through the workflow
 
@@ -67,8 +62,7 @@ stage; otherwise the configured cutoff is used.
 Inspect the matrix coverage and preparation audit before the embedding or
 compartment plot. Depth-profile interpolation is not a license to fill between
 unrelated cruises. The distinction between frequently measured core features
-and sparse measurements matters to both downstream interpretation and the
-optional environmental-media recipe.
+and sparse measurements matters to downstream interpretation.
 
 ### 3. Fit environmental axes and compartment schemes
 
@@ -99,26 +93,9 @@ patterns associated with the cruise representation. Within-GMM HDBSCAN adds
 local density-based structure; optional continuous time-depth sections provide
 another view of the measurements and inferred structure.
 
-### 5. Compare fixed genome models across media (optional)
+### 5. Publish results coherently
 
-The environmental-media stage combines group chemistry with a common basal
-medium, recording ingredient selection, exclusions and recipe provenance.
-The genome manifest launches reconstruction tasks for individual genome FASTAs.
-gapseq reconstructs and gap-fills each genome model. Reconstruction can proceed
-independently of the environmental chain; comparison waits for the required
-media and a reconstructed model.
-
-COBRApy evaluates media on copies of that fixed model. Growth predictions,
-exchange flux variability and nutrient counterfactuals therefore compare
-conditions within a specified reconstruction, rather than changing the model
-for every condition. Aggregate results retain per-genome identity. A failed
-growth prediction can reflect absent ingredients, reconstruction limitations
-or solver/model assumptions; it is not evidence that the organism cannot live
-in the sampled environment. See [genome modeling](genome-modeling.md).
-
-### 6. Publish results coherently
-
-The master summary waits for the selected environmental and genome outputs,
+The master summary waits for the selected environmental outputs,
 including optional continuous sections. The wrapper publishes the supported
 results into module tables/plots, summary and logs. The current report filename
 is `summary/report/BASIN_run_report.html`; the implementation retains this
@@ -132,8 +109,7 @@ start; it does not validate a biological dataset or its interpretation.
 ## Execution and source map
 
 Most environmental tasks are explicitly ordered in `basin_pipeline.nf`.
-Optional missingness sensitivity supplies a value to PCA, and genome
-reconstruction/comparison scatters by genome before results are gathered.
+Optional missingness sensitivity supplies a value to PCA before results are gathered.
 The conceptual figure's separate evidence rows do not imply that all stages
 run concurrently. Nextflow manages task dependencies and caches; the wrapper
 manages configuration, environments, thread limits and result publication.
@@ -142,9 +118,9 @@ manages configuration, environments, thread limits and result publication.
 |---|---|
 | User entry point | `run_basins_pipeline.sh` |
 | Configuration, controller environment, resume and publication | `run_basin_pipeline.sh` |
-| Process dependencies, optional branches and genome scatter/gather | `basin_pipeline.nf` |
+| Process dependencies, optional environmental branches | `basin_pipeline.nf` |
 | Study configuration | `basin_pipeline_nextflow.yml` |
-| Numerical and modeling environments | `processes/shared_envs/` |
+| Numerical analysis environments | `processes/shared_envs/` |
 | Environmental/process implementations | [Process reference](process-reference.md) |
 | Continuous sections | `processes/continuous_sections/continuous_time_depth_sections.py` |
 

@@ -28,7 +28,7 @@ biochem:
   table_b: /absolute/path/to/ctd.csv
 ```
 
-This is an excerpt, not a replacement for the full configuration. Delete the template's `runtime_dir`, `work_dir`, and `conda_cache_dir` placeholder entries to use the defaults below your output directory, or replace each with a real path. Leave `biochem.output_root` empty. Adapt `clean_rename_map`, `clean_keep_cols`, and `feature_cols` together to match your source measurements. For the first environmental-only run leave `gapseq_media.enabled` and `genome_modeling.enabled` false.
+This is an excerpt, not a replacement for the full configuration. Delete the template's `runtime_dir`, `work_dir`, and `conda_cache_dir` placeholder entries to use the defaults below your output directory, or replace each with a real path. Leave `biochem.output_root` empty. Adapt `clean_rename_map`, `clean_keep_cols`, and `feature_cols` together to match your source measurements. Keep the template’s disabled experimental stages disabled.
 
 ## 2. Run
 

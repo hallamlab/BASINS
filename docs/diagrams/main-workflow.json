@@ -1,11 +1,10 @@
 {
   "title": "BASINS",
   "inputs": [
-    "Geochemistry / bottle measurements + CTD table + complete YAML configuration",
-    "Optional: basal media, genome FASTAs and manifest, genome metadata / abundances"
+    "Geochemistry / bottle measurements + CTD table + complete YAML configuration"
   ],
-  "controller": "BASINS + Nextflow DSL2 • Local controller with task environments",
-  "execution": "run_basins_pipeline.sh • YAML configuration • Mamba environments • Native thread caps • Resume and stage-aware reruns",
+  "controller": "BASINS + Nextflow DSL2 \u2022 Local controller with task environments",
+  "execution": "run_basins_pipeline.sh \u2022 YAML configuration \u2022 Mamba environments \u2022 Native thread caps \u2022 Resume and stage-aware reruns",
   "rows": [
     {
       "title": "Observation integration",
@@ -49,7 +48,7 @@
         },
         {
           "label": "Derive water-column\nstructure",
-          "tool": "N²; MLD; PEA",
+          "tool": "N\u00b2; MLD; PEA",
           "kind": "compute"
         },
         {
@@ -267,83 +266,11 @@
       ]
     },
     {
-      "title": "Model and media inputs",
-      "note": "Optional: reconstructed genomes and environmental media converge for comparison",
-      "lanes": [
-        [
-          {
-            "label": "Group chemistry +\nbasal medium",
-            "tool": "",
-            "kind": "input"
-          },
-          {
-            "label": "Build supported\nmedia recipes",
-            "tool": "BIOCHEM_GAPSEQ_MEDIA",
-            "kind": "compute"
-          },
-          {
-            "label": "Audit ingredients\nand exclusions",
-            "tool": "recipe provenance",
-            "kind": "compute"
-          }
-        ],
-        [
-          {
-            "label": "Genome FASTAs +\nmanifest",
-            "tool": "",
-            "kind": "input"
-          },
-          {
-            "label": "Reconstruct and\ngap-fill each genome",
-            "tool": "gapseq",
-            "kind": "compute"
-          },
-          {
-            "label": "Keep each\nreconstructed model fixed",
-            "tool": "one model per genome",
-            "kind": "compute"
-          }
-        ]
-      ],
-      "result": "Media recipes +\nfixed genome models"
-    },
-    {
-      "title": "Metabolic comparisons",
-      "note": "Optional: genome tasks scatter; predictions depend on reconstruction and medium assumptions",
-      "nodes": [
-        {
-          "label": "Fixed models +\nenvironmental media",
-          "tool": "",
-          "kind": "input"
-        },
-        {
-          "label": "Apply medium to\nmodel copies",
-          "tool": "COBRApy",
-          "kind": "compute"
-        },
-        {
-          "label": "Predict growth +\nexchange variability",
-          "tool": "FBA; FVA",
-          "kind": "compute"
-        },
-        {
-          "label": "Test nutrient\ncounterfactuals",
-          "tool": "configured comparisons",
-          "kind": "compute"
-        },
-        {
-          "label": "Per-genome results +\ncombined model tables",
-          "tool": "",
-          "kind": "output"
-        }
-      ]
-    },
-    {
       "title": "Results and report",
       "note": "Environmental stages are ordered; diagrams group methods rather than prescribe scheduling",
       "nodes": [
         {
-          "label": "Completed analyses +\noptional model results",
+          "label": "Completed environmental\nanalyses",
           "tool": "",
           "kind": "input"
         },

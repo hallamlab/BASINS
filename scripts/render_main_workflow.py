@@ -7,8 +7,8 @@ import html
 import json
 
 
-def render(root):
-    data = json.loads((root / 'docs/diagrams/main-workflow.json').read_text())
+def render(root, stem="main-workflow", output="workflow-main"):
+    data = json.loads((root / f'docs/diagrams/{stem}.json').read_text())
     width = 1720
     heights = [290 if 'lanes' in row else 190 for row in data['rows']]
     height = 310 + sum(heights)
@@ -65,9 +65,9 @@ def render(root):
         text(326,y+8,str(index),21)
         if 'lanes' in row:
             ys=[y-64,y+64]
-            wire([(339,y),(380,y)],False)
+            wire([(339,y),(350,y)],False)
             for lane,ly in zip(row['lanes'],ys):
-                wire([(380,y),(380,ly),(448,ly)])
+                wire([(350,y),(350,ly),(448,ly)])
                 for x,n in zip([460,820,1160],lane):node(x,ly,n)
                 wire([(473,ly),(807,ly)])
                 wire([(833,ly),(1147,ly)])
@@ -82,6 +82,6 @@ def render(root):
         if row.get('note'):text(1010,top+span-12,row['note'],18)
         top+=span
     parts.extend(['</g>','</svg>'])
-    source=root/'docs/assets/workflow-main.svg'
+    source=root/f'docs/assets/{output}.svg'
     source.write_text('\n'.join(parts)+'\n')
     return source,width,height

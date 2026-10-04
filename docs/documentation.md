@@ -47,3 +47,5 @@ Review both the generated SVG and PDF. Main figures use their own tight canvas
 at full page width; supporting diagrams share a centered 2240-unit canvas.
 Do not copy unpublished manuscript figures or numerical results into these
 public software diagrams.
+
+The landing page and README use the brief workflow (`docs/diagrams/brief-workflow.json`); the workflow guide retains the detailed version (`main-workflow.json`). The renderer rebuilds both SVG and PDF versions.

@@ -16,4 +16,4 @@ The workflow selects a GMM compartment count, assigns GMM responsibilities, calc
 
 Stratification anomalies, state transitions, succession graphs, and feature associations describe temporal/environmental relationships. Cruise-level EOF analyses account for a local multiyear baseline and assess group stability, size, and assignment confidence. Seasonal-redundancy and held-out-chemistry checks help determine whether groups add information beyond season or depth. These are observational associations; group membership does not establish a causal mechanism.
 
-BASINS' public workflow focuses on environmental analyses and optional genome modeling. ASV ecological overlays and manuscript-specific investigations found in local developer files are not additional public workflow stages.
+BASINS' public workflow focuses on environmental analyses. ASV ecological overlays and manuscript-specific investigations found in local developer files are not additional public workflow stages.

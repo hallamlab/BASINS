@@ -4,7 +4,7 @@
 
 Set `resources.threads` for the run, `resources.math_threads` for native numerical-library pools, and optionally `resources.max_concurrent_tasks`. The launcher defaults the task cap to `max(1, floor(threads / math_threads))`. It exports native thread limits for OpenBLAS, MKL, OpenMP, NumExpr, Numba, BLIS, and Accelerate. These controls reduce oversubscription; they do not cap disk usage.
 
-The environmental workflow has many explicit sequential dependencies. Raising the task cap does not make dependent stages simultaneous. Optional genome reconstruction and comparisons scatter by genome; `genome_modeling.cpus_per_genome` and `max_parallel_genomes` control that branch. Resource requests and solver memory still need to fit the available hardware.
+The environmental workflow has many explicit sequential dependencies. Raising the task cap does not make dependent stages simultaneous. Resource requests still need to fit the available hardware.
 
 ## Resume and targeted reruns
 

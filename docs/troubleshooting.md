@@ -10,6 +10,5 @@
 | Clustering fails or groups are unstable | Inspect sample/profile count, variance, missingness, K diagnostics, and coverage before tuning thresholds. |
 | Expected public files are absent mid-run | Scientific results are in publication staging until successful finalization. Inspect Nextflow and controller logs. |
 | A rerun appears cached | Use `--rerun-from` for deliberate stage recomputation; preserve work for ordinary resume. |
-| Modeling cannot find genomes | Supply your own manifest; the private manifest in the SI example is not included. |
 
 Report issues at [GitHub](https://github.com/hallamlab/BASINS/issues). Include the commit, redacted configuration, failing stage, and the actual error before the final Nextflow summary. Include a small input example when the problem depends on table layout.

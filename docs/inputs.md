@@ -41,5 +41,3 @@ Preparation checklist:
 The merge script requires `Latitude`, `Longitude`, `Cruise`, `Year`, `Month`, `Day`, and `Depth` in both tables. Matching is within the first six keys; depth chooses the nearest CTD observation. The default maximum difference is 10 m. Equidistant CTD matches are averaged. CTD `Oxygen` is preferred where present, with table-A `O2` as fallback. This is not an oxygen calibration or batch-correction step.
 
 Use consistent coordinate values and dates: nearly identical but unequal profile keys can prevent a match. Review `CTD_Depth_Used` and missing CTD fields in the merged table. Do not replace missing measurements with zero; zero has a distinct measured/non-detect meaning in downstream chemistry handling.
-
-Optional genome inputs and metadata belong to the [genome-modeling branch](genome-modeling.md). They are not required for the environmental workflow.

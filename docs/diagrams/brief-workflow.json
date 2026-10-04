@@ -1,0 +1,85 @@
+{
+  "title": "BASINS",
+  "inputs": [
+    "Geochemistry / bottle measurements + CTD table + complete YAML configuration"
+  ],
+  "controller": "BASINS + Nextflow DSL2 \u2022 Local controller with task environments",
+  "execution": "run_basins_pipeline.sh \u2022 YAML configuration \u2022 Mamba environments \u2022 Native thread caps \u2022 Resume and stage-aware reruns",
+  "rows": [
+    {
+      "title": "Prepare observations",
+      "nodes": [
+        {
+          "label": "Chemistry +\nCTD profiles",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Match observations;\nresolve oxygen sources",
+          "tool": "",
+          "kind": "compute"
+        },
+        {
+          "label": "Density, stratification\nand matrix preparation",
+          "tool": "",
+          "kind": "compute"
+        },
+        {
+          "label": "Environmental features\nand physical metrics",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Define niche space",
+      "nodes": [
+        {
+          "label": "Prepared\nenvironmental matrix",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "PCA axes +\nGMM compartments",
+          "tool": "",
+          "kind": "compute"
+        },
+        {
+          "label": "Oxygen / hybrid assignments;\ncompare schemes",
+          "tool": "",
+          "kind": "compute"
+        },
+        {
+          "label": "Coordinates, memberships\nand compartment diagnostics",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    },
+    {
+      "title": "Explore change",
+      "nodes": [
+        {
+          "label": "Profiles + assignments\nthrough time",
+          "tool": "",
+          "kind": "input"
+        },
+        {
+          "label": "Transitions, succession\nand feature associations",
+          "tool": "",
+          "kind": "compute"
+        },
+        {
+          "label": "EOF cruise groups;\nwithin-group structure",
+          "tool": "",
+          "kind": "compute"
+        },
+        {
+          "label": "Tables, figures +\nHTML run report",
+          "tool": "",
+          "kind": "output"
+        }
+      ]
+    }
+  ]
+}
