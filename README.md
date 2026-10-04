@@ -4,7 +4,7 @@
 
 BASINS is a Nextflow workflow for integrating biogeochemical observations, characterizing environmental niche space.
 
-**[Read the full user guide on Read the Docs](https://hallamlab-basins.readthedocs.io/)**
+**[Full user guide](https://hallamlab-basins.readthedocs.io/en/latest/index.html)** · [Reviewer test](https://hallamlab-basins.readthedocs.io/en/latest/reviewer-test.html) · [Issues and feature requests](https://github.com/hallamlab/BASINS/issues)
 
 ## Quick start
 
