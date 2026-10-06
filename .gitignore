@@ -73,5 +73,8 @@ reports/
 /_build/
 /docs/_build/
 
-# Reviewer-generated results and caches
+# Test-generated results and caches
+/examples/test/output/
+
+# Results created with older test commands
 /examples/reviewer/output/

@@ -106,7 +106,7 @@ singular filename even though the project is called BASINS.
 Review the configuration, process logs and output inventory with the report.
 A successful disabled-stage smoke test establishes that the controller can
 start; it does not validate a biological dataset or its interpretation.
-[Reviewer testing](reviewer-test.md) distinguishes these cases.
+[Test testing](test.md) distinguishes these cases.
 
 ## Execution and source map
 

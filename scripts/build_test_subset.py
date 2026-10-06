@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproduce the SI 2009–2012 reviewer subset from the cleaned source CSVs."""
+"""Reproduce the SI 2009–2012 test subset from the cleaned source CSVs."""
 import argparse
 import csv
 import hashlib

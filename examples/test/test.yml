@@ -1,4 +1,4 @@
-# Run from the repository: ./run_basins_pipeline.sh examples/reviewer/reviewer.yml
+# Run from the repository: ./run_basins_pipeline.sh examples/test/test.yml
 paths:
   output_dir: output
   keep_runtime_dir: true

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the bundled SI reviewer inputs and key scientific outputs (stdlib only)."""
+"""Check the bundled SI test inputs and key scientific outputs (stdlib only)."""
 import argparse
 from collections import Counter
 import csv
@@ -19,14 +19,14 @@ def table(path):
 
 
 def validate(output):
-    data = ROOT/'examples/reviewer/data'
+    data = ROOT/'examples/test/data'
     provenance = json.loads((data/'provenance.json').read_text())
     for name, entry in provenance['files'].items():
         path = data/name
         if hashlib.sha256(path.read_bytes()).hexdigest() != entry['sha256']:
-            raise ValueError(f'Reviewer input checksum mismatch: {name}')
+            raise ValueError(f'Test input checksum mismatch: {name}')
         if len(table(path)) != entry['rows']:
-            raise ValueError(f'Reviewer input row count mismatch: {name}')
+            raise ValueError(f'Test input row count mismatch: {name}')
     merged = table(output/'modules/biochemical_processing/tables/01_merged_nearest_depth.tsv')
     if len(merged) != 754:
         raise ValueError(f'Expected all 754 chemistry rows after merging, found {len(merged)}')
@@ -75,7 +75,7 @@ def validate(output):
                   'BIOCHEM_EOF_PIPELINE', 'BIOCHEM_EOF_STATE_CLUSTER',
                   'BIOCHEM_WITHIN_GMM_HDBSCAN', 'BIOCHEM_CONTINUOUS_SECTIONS', 'MASTER_SUMMARY'):
         if stage not in stages:
-            raise ValueError(f'Expected reviewer stage missing from trace: {stage}')
+            raise ValueError(f'Expected test stage missing from trace: {stage}')
     report = output/'summary/report/BASIN_run_report.html'
     if not report.is_file() or report.stat().st_size < 1000:
         raise ValueError('Missing or empty HTML report')
@@ -89,4 +89,4 @@ if __name__ == '__main__':
     try:
         validate(args.output)
     except (ValueError, KeyError, FileNotFoundError) as exc:
-        parser.exit(1, f'Reviewer validation failed: {exc}\n')
+        parser.exit(1, f'Test validation failed: {exc}\n')

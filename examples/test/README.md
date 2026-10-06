@@ -1,15 +1,15 @@
-# Saanich Inlet reviewer dataset
+# Saanich Inlet test dataset
 
 This small, real-data example retains complete depth profiles from 47 cruises in 2009–2012: 754 chemistry observations at 24 recorded depths (10–200 m), plus 10,997 matching CTD records. The two CSVs total 1,112,748 bytes (about 1.06 MiB). No extra download is required after cloning BASINS.
 
 From the repository root:
 
 ```bash
-./run_basins_pipeline.sh examples/reviewer/reviewer.yml
-python3 scripts/validate_reviewer.py examples/reviewer/output
+./run_basins_pipeline.sh examples/test/test.yml
+python3 scripts/validate_test.py examples/test/output
 ```
 
-Open `examples/reviewer/output/summary/report/BASIN_run_report.html`. The configuration requests four total CPU threads, with two native math threads per task. The launcher creates its controller environment and Nextflow creates the scientific environment with Mamba; first installation needs internet access. Results and caches stay under `examples/reviewer/output/` and are ignored by Git. Repeating the same command uses the normal resume mechanism.
+Open `examples/test/output/summary/report/BASIN_run_report.html`. The configuration requests four total CPU threads, with two native math threads per task. The launcher creates its controller environment and Nextflow creates the scientific environment with Mamba; first installation needs internet access. Results and caches stay under `examples/test/output/` and are ignored by Git. Repeating the same command uses the normal resume mechanism.
 
 The example exercises chemistry/CTD matching, physical metrics, matrix preparation, PCA, GMM/oxygen/hybrid compartments, temporal analyses, EOF cruise grouping, within-group structure, continuous sections, and the report. Optional missingness sensitivity and experimental stages are disabled. The cruise-group stability threshold is 0.40 for this demonstration (the normal template uses 0.50); other statistical settings follow the normal template. This is an installation and interpretation exercise, not a reproduction of the full Saanich Inlet study: short time coverage changes baseline estimates, cluster selection and inference. Cluster numbers are not stable biological identifiers.
 
@@ -26,10 +26,10 @@ Torres-Beltrán, M., Hawley, A. K., Capelle, D. et al. (2018). **Data from: A co
 To reproduce the subset from the named cleaned source files:
 
 ```bash
-python3 scripts/build_reviewer_subset.py \
+python3 scripts/build_test_subset.py \
   --chemistry /path/to/SI_JA_Compiled_Geochem_Dec_09_Outlier_RM.csv \
   --ctd /path/to/SI_JA_Compiled_CTD_Data_Dec_18_2025_Outlier_RM.csv \
-  --output /path/to/rebuilt-reviewer-data
+  --output /path/to/rebuilt-test-data
 ```
 
 The builder selects all chemistry rows from 2009–2012 cruises with matching CTD profiles and CTD rows matching their cruise/year/month/day. It does not select on cluster labels, significance, or expected outcomes. The full SI study data and manuscript products are not bundled.
