@@ -6,7 +6,7 @@
 
 Process names appear above compute diamonds; the main software tools or libraries appear below them.
 
-[Download SVG](assets/workflow-main.svg) · [Download PDF](assets/workflow-main.pdf)
+[Download SVG](assets/workflow-main.svg) · [Download PDF](assets/workflow-main.pdf) · [Brief overview](index.md)
 
 The arrows connecting numbered modules show conceptual progression; they do not require independent analysis branches to execute serially.
 
