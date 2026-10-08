@@ -16,12 +16,12 @@
         },
         {
           "label": "Match profile / depth;\nresolve oxygen sources",
-          "tool": "Chemistry / CTD fallback",
+          "tool": "pandas",
           "kind": "compute"
         },
         {
           "label": "Density, stratification\nand renewal metrics",
-          "tool": "GSW; N² / MLD / PEA",
+          "tool": "GSW / NumPy",
           "kind": "compute"
         },
         {
@@ -29,8 +29,7 @@
           "tool": "",
           "kind": "output"
         }
-      ],
-      "note": ""
+      ]
     },
     {
       "title": "Prepare feature matrices",
@@ -42,12 +41,12 @@
         },
         {
           "label": "Select variables;\nassess missingness",
-          "tool": "Core / sparse features",
+          "tool": "pandas",
           "kind": "compute"
         },
         {
           "label": "Fill depth profiles;\ntransform and scale",
-          "tool": "PCA preparation",
+          "tool": "scikit-learn",
           "kind": "compute"
         },
         {
@@ -55,8 +54,7 @@
           "tool": "",
           "kind": "output"
         }
-      ],
-      "note": ""
+      ]
     },
     {
       "title": "Define niche space",
@@ -68,12 +66,12 @@
         },
         {
           "label": "Environmental axes;\nmixture compartments",
-          "tool": "PCA; GMM; K selection",
+          "tool": "scikit-learn",
           "kind": "compute"
         },
         {
           "label": "Oxygen / hybrid labels;\ncompare assignments",
-          "tool": "Membership strengths",
+          "tool": "NumPy / pandas",
           "kind": "compute"
         },
         {
@@ -81,8 +79,7 @@
           "tool": "",
           "kind": "output"
         }
-      ],
-      "note": ""
+      ]
     },
     {
       "title": "Track temporal change",
@@ -94,12 +91,12 @@
         },
         {
           "label": "Stratification anomalies;\nstate transitions",
-          "tool": "Succession / state graphs",
+          "tool": "NumPy / pandas",
           "kind": "compute"
         },
         {
           "label": "Associate features\nwith environmental states",
-          "tool": "Feature associations",
+          "tool": "NumPy / pandas",
           "kind": "compute"
         },
         {
@@ -107,8 +104,7 @@
           "tool": "",
           "kind": "output"
         }
-      ],
-      "note": ""
+      ]
     },
     {
       "title": "Resolve profile structure",
@@ -120,12 +116,12 @@
         },
         {
           "label": "EOF modes; cruise groups\nand stability assessment",
-          "tool": "Baseline removal; clustering",
+          "tool": "scikit-learn",
           "kind": "compute"
         },
         {
           "label": "Within-group structure;\ntime-depth sections",
-          "tool": "HDBSCAN; optional sections",
+          "tool": "HDBSCAN / Matplotlib",
           "kind": "compute"
         },
         {
@@ -133,8 +129,7 @@
           "tool": "",
           "kind": "output"
         }
-      ],
-      "note": ""
+      ]
     },
     {
       "title": "Review and export",
@@ -146,12 +141,12 @@
         },
         {
           "label": "Gather tables, figures\nand diagnostics",
-          "tool": "Master summary",
+          "tool": "BASINS / pandas",
           "kind": "compute"
         },
         {
           "label": "Publish results\nand report navigation",
-          "tool": "Output inventory",
+          "tool": "BASINS",
           "kind": "compute"
         },
         {
@@ -159,8 +154,7 @@
           "tool": "",
           "kind": "output"
         }
-      ],
-      "note": ""
+      ]
     }
   ]
 }

@@ -84,7 +84,6 @@ def render(root, stem="main-workflow", output="workflow-main"):
             wire([(339,y),(448,y)])
             for x,n in zip(xs,nodes):node(x,y,n)
             for a,b in zip(xs,xs[1:]):wire([(a+13,y),(b-13,y)])
-        if row.get('note'):text(1010,top+span-12,row['note'],18)
         top+=span
     parts.extend(['</g>','</svg>'])
     source=root/f'docs/assets/{output}.svg'

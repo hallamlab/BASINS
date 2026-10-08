@@ -32,11 +32,11 @@
 <path d="M813.6666666666667 370.0 L826.6666666666667 357.0 L839.6666666666667 370.0 L826.6666666666667 383.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="826.6666666666667" y="320.0" font-size="22" text-anchor="middle">Match profile keys</text>
 <text x="826.6666666666667" y="345.0" font-size="22" text-anchor="middle">and nearest depth</text>
-<text x="826.6666666666667" y="407.0" font-size="18" text-anchor="middle">BIOCHEM_MERGE</text>
+<text x="826.6666666666667" y="407.0" font-size="18" text-anchor="middle">pandas</text>
 <path d="M1180.3333333333335 370.0 L1193.3333333333335 357.0 L1206.3333333333335 370.0 L1193.3333333333335 383.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1193.3333333333335" y="320.0" font-size="22" text-anchor="middle">Resolve oxygen</text>
 <text x="1193.3333333333335" y="345.0" font-size="22" text-anchor="middle">source and provenance</text>
-<text x="1193.3333333333335" y="407.0" font-size="18" text-anchor="middle">CTD / chemistry fallback</text>
+<text x="1193.3333333333335" y="407.0" font-size="18" text-anchor="middle">BASINS / pandas</text>
 <circle cx="1560.0" cy="370.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="320.0" font-size="22" text-anchor="middle">Merged observations</text>
 <text x="1560.0" y="345.0" font-size="22" text-anchor="middle">and match diagnostics</text>
@@ -58,11 +58,11 @@
 <path d="M997.0 560.0 L1010.0 547.0 L1023.0 560.0 L1010.0 573.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1010.0" y="510.0" font-size="22" text-anchor="middle">Derive water-column</text>
 <text x="1010.0" y="535.0" font-size="22" text-anchor="middle">structure</text>
-<text x="1010.0" y="597.0" font-size="18" text-anchor="middle">N²; MLD; PEA</text>
+<text x="1010.0" y="597.0" font-size="18" text-anchor="middle">NumPy</text>
 <path d="M1272.0 560.0 L1285.0 547.0 L1298.0 560.0 L1285.0 573.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1285.0" y="510.0" font-size="22" text-anchor="middle">Evaluate renewal</text>
 <text x="1285.0" y="535.0" font-size="22" text-anchor="middle">event criteria</text>
-<text x="1285.0" y="597.0" font-size="18" text-anchor="middle">oxygen / nitrate; persistence</text>
+<text x="1285.0" y="597.0" font-size="18" text-anchor="middle">BASINS / pandas</text>
 <circle cx="1560.0" cy="560.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="510.0" font-size="22" text-anchor="middle">Density, stratification</text>
 <text x="1560.0" y="535.0" font-size="22" text-anchor="middle">and renewal tables</text>
@@ -81,15 +81,15 @@
 <path d="M722.0 750.0 L735.0 737.0 L748.0 750.0 L735.0 763.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="735.0" y="700.0" font-size="22" text-anchor="middle">Rename / select</text>
 <text x="735.0" y="725.0" font-size="22" text-anchor="middle">numeric measurements</text>
-<text x="735.0" y="787.0" font-size="18" text-anchor="middle">configured feature set</text>
+<text x="735.0" y="787.0" font-size="18" text-anchor="middle">pandas</text>
 <path d="M997.0 750.0 L1010.0 737.0 L1023.0 750.0 L1010.0 763.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1010.0" y="700.0" font-size="22" text-anchor="middle">Assess missingness</text>
 <text x="1010.0" y="725.0" font-size="22" text-anchor="middle">and cutoff sensitivity</text>
-<text x="1010.0" y="787.0" font-size="18" text-anchor="middle">optional sensitivity stage</text>
+<text x="1010.0" y="787.0" font-size="18" text-anchor="middle">pandas</text>
 <path d="M1272.0 750.0 L1285.0 737.0 L1298.0 750.0 L1285.0 763.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1285.0" y="700.0" font-size="22" text-anchor="middle">Depth-profile filling;</text>
 <text x="1285.0" y="725.0" font-size="22" text-anchor="middle">transform + scale</text>
-<text x="1285.0" y="787.0" font-size="18" text-anchor="middle">PCA preparation</text>
+<text x="1285.0" y="787.0" font-size="18" text-anchor="middle">scikit-learn</text>
 <circle cx="1560.0" cy="750.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="700.0" font-size="22" text-anchor="middle">Core / sparse matrices</text>
 <text x="1560.0" y="725.0" font-size="22" text-anchor="middle">and preparation audit</text>
@@ -108,11 +108,11 @@
 <path d="M813.6666666666667 940.0 L826.6666666666667 927.0 L839.6666666666667 940.0 L826.6666666666667 953.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="826.6666666666667" y="890.0" font-size="22" text-anchor="middle">Fit principal</text>
 <text x="826.6666666666667" y="915.0" font-size="22" text-anchor="middle">components</text>
-<text x="826.6666666666667" y="977.0" font-size="18" text-anchor="middle">PCA</text>
+<text x="826.6666666666667" y="977.0" font-size="18" text-anchor="middle">scikit-learn</text>
 <path d="M1180.3333333333335 940.0 L1193.3333333333335 927.0 L1206.3333333333335 940.0 L1193.3333333333335 953.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1193.3333333333335" y="890.0" font-size="22" text-anchor="middle">Export loadings</text>
 <text x="1193.3333333333335" y="915.0" font-size="22" text-anchor="middle">and sample scores</text>
-<text x="1193.3333333333335" y="977.0" font-size="18" text-anchor="middle">variance / diagnostics</text>
+<text x="1193.3333333333335" y="977.0" font-size="18" text-anchor="middle">pandas / Matplotlib</text>
 <circle cx="1560.0" cy="940.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="890.0" font-size="22" text-anchor="middle">PCA scores and</text>
 <text x="1560.0" y="915.0" font-size="22" text-anchor="middle">feature contributions</text>
@@ -131,15 +131,15 @@
 <path d="M722.0 1130.0 L735.0 1117.0 L748.0 1130.0 L735.0 1143.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="735.0" y="1080.0" font-size="22" text-anchor="middle">Select K + fit</text>
 <text x="735.0" y="1105.0" font-size="22" text-anchor="middle">mixture components</text>
-<text x="735.0" y="1167.0" font-size="18" text-anchor="middle">GMM</text>
+<text x="735.0" y="1167.0" font-size="18" text-anchor="middle">scikit-learn</text>
 <path d="M997.0 1130.0 L1010.0 1117.0 L1023.0 1130.0 L1010.0 1143.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1010.0" y="1080.0" font-size="22" text-anchor="middle">Assign soft</text>
 <text x="1010.0" y="1105.0" font-size="22" text-anchor="middle">oxygen categories</text>
-<text x="1010.0" y="1167.0" font-size="18" text-anchor="middle">configured thresholds</text>
+<text x="1010.0" y="1167.0" font-size="18" text-anchor="middle">NumPy</text>
 <path d="M1272.0 1130.0 L1285.0 1117.0 L1298.0 1130.0 L1285.0 1143.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1285.0" y="1080.0" font-size="22" text-anchor="middle">Combine oxygen</text>
 <text x="1285.0" y="1105.0" font-size="22" text-anchor="middle">and GMM membership</text>
-<text x="1285.0" y="1167.0" font-size="18" text-anchor="middle">hybrid compartments</text>
+<text x="1285.0" y="1167.0" font-size="18" text-anchor="middle">pandas</text>
 <circle cx="1560.0" cy="1130.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="1080.0" font-size="22" text-anchor="middle">Assignments +</text>
 <text x="1560.0" y="1105.0" font-size="22" text-anchor="middle">membership strengths</text>
@@ -158,11 +158,11 @@
 <path d="M813.6666666666667 1320.0 L826.6666666666667 1307.0 L839.6666666666667 1320.0 L826.6666666666667 1333.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="826.6666666666667" y="1270.0" font-size="22" text-anchor="middle">Compare schemes</text>
 <text x="826.6666666666667" y="1295.0" font-size="22" text-anchor="middle">and profile structure</text>
-<text x="826.6666666666667" y="1357.0" font-size="18" text-anchor="middle">BIOCHEM_COMPARE</text>
+<text x="826.6666666666667" y="1357.0" font-size="18" text-anchor="middle">pandas / SciPy</text>
 <path d="M1180.3333333333335 1320.0 L1193.3333333333335 1307.0 L1206.3333333333335 1320.0 L1193.3333333333335 1333.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1193.3333333333335" y="1270.0" font-size="22" text-anchor="middle">Subdivide oxygen</text>
 <text x="1193.3333333333335" y="1295.0" font-size="22" text-anchor="middle">categories by GMM</text>
-<text x="1193.3333333333335" y="1357.0" font-size="18" text-anchor="middle">BIOCHEM_SPLIT_O2_BY_GMM</text>
+<text x="1193.3333333333335" y="1357.0" font-size="18" text-anchor="middle">pandas</text>
 <circle cx="1560.0" cy="1320.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="1270.0" font-size="22" text-anchor="middle">Cross-scheme</text>
 <text x="1560.0" y="1295.0" font-size="22" text-anchor="middle">comparison tables</text>
@@ -180,15 +180,15 @@
 <path d="M722.0 1510.0 L735.0 1497.0 L748.0 1510.0 L735.0 1523.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="735.0" y="1460.0" font-size="22" text-anchor="middle">Characterize</text>
 <text x="735.0" y="1485.0" font-size="22" text-anchor="middle">stratification anomalies</text>
-<text x="735.0" y="1547.0" font-size="18" text-anchor="middle">BIOCHEM_STRAT_ANOMALY</text>
+<text x="735.0" y="1547.0" font-size="18" text-anchor="middle">NumPy / SciPy</text>
 <path d="M997.0 1510.0 L1010.0 1497.0 L1023.0 1510.0 L1010.0 1523.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1010.0" y="1460.0" font-size="22" text-anchor="middle">Summarize transitions</text>
 <text x="1010.0" y="1485.0" font-size="22" text-anchor="middle">and succession</text>
-<text x="1010.0" y="1547.0" font-size="18" text-anchor="middle">state graph</text>
+<text x="1010.0" y="1547.0" font-size="18" text-anchor="middle">pandas</text>
 <path d="M1272.0 1510.0 L1285.0 1497.0 L1298.0 1510.0 L1285.0 1523.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1285.0" y="1460.0" font-size="22" text-anchor="middle">Associate features</text>
 <text x="1285.0" y="1485.0" font-size="22" text-anchor="middle">with states</text>
-<text x="1285.0" y="1547.0" font-size="18" text-anchor="middle">BIOCHEM_FEATURE_ASSOC</text>
+<text x="1285.0" y="1547.0" font-size="18" text-anchor="middle">NumPy / pandas</text>
 <circle cx="1560.0" cy="1510.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="1460.0" font-size="22" text-anchor="middle">Temporal diagnostics +</text>
 <text x="1560.0" y="1485.0" font-size="22" text-anchor="middle">feature associations</text>
@@ -207,15 +207,15 @@
 <path d="M722.0 1700.0 L735.0 1687.0 L748.0 1700.0 L735.0 1713.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="735.0" y="1650.0" font-size="22" text-anchor="middle">Remove baseline;</text>
 <text x="735.0" y="1675.0" font-size="22" text-anchor="middle">construct EOF representation</text>
-<text x="735.0" y="1737.0" font-size="18" text-anchor="middle">BIOCHEM_EOF_PIPELINE</text>
+<text x="735.0" y="1737.0" font-size="18" text-anchor="middle">scikit-learn</text>
 <path d="M997.0 1700.0 L1010.0 1687.0 L1023.0 1700.0 L1010.0 1713.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1010.0" y="1650.0" font-size="22" text-anchor="middle">Group cruises;</text>
 <text x="1010.0" y="1675.0" font-size="22" text-anchor="middle">assess stability</text>
-<text x="1010.0" y="1737.0" font-size="18" text-anchor="middle">BIOCHEM_EOF_STATE_CLUSTER</text>
+<text x="1010.0" y="1737.0" font-size="18" text-anchor="middle">scikit-learn</text>
 <path d="M1272.0 1700.0 L1285.0 1687.0 L1298.0 1700.0 L1285.0 1713.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1285.0" y="1650.0" font-size="22" text-anchor="middle">Inspect modes and</text>
 <text x="1285.0" y="1675.0" font-size="22" text-anchor="middle">season relationships</text>
-<text x="1285.0" y="1737.0" font-size="18" text-anchor="middle">BIOCHEM_EOF_MODE_PLOTS</text>
+<text x="1285.0" y="1737.0" font-size="18" text-anchor="middle">Matplotlib</text>
 <circle cx="1560.0" cy="1700.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="1650.0" font-size="22" text-anchor="middle">Cruise groups +</text>
 <text x="1560.0" y="1675.0" font-size="22" text-anchor="middle">mode diagnostics</text>
@@ -238,7 +238,7 @@
 <path d="M1180.3333333333335 1890.0 L1193.3333333333335 1877.0 L1206.3333333333335 1890.0 L1193.3333333333335 1903.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1193.3333333333335" y="1840.0" font-size="22" text-anchor="middle">Render continuous</text>
 <text x="1193.3333333333335" y="1865.0" font-size="22" text-anchor="middle">time-depth sections</text>
-<text x="1193.3333333333335" y="1927.0" font-size="18" text-anchor="middle">optional section stage</text>
+<text x="1193.3333333333335" y="1927.0" font-size="18" text-anchor="middle">SciPy / Matplotlib</text>
 <circle cx="1560.0" cy="1890.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="1840.0" font-size="22" text-anchor="middle">Substructure tables +</text>
 <text x="1560.0" y="1865.0" font-size="22" text-anchor="middle">continuous sections</text>
@@ -256,17 +256,16 @@
 <path d="M813.6666666666667 2080.0 L826.6666666666667 2067.0 L839.6666666666667 2080.0 L826.6666666666667 2093.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="826.6666666666667" y="2030.0" font-size="22" text-anchor="middle">Gather supported</text>
 <text x="826.6666666666667" y="2055.0" font-size="22" text-anchor="middle">scientific products</text>
-<text x="826.6666666666667" y="2117.0" font-size="18" text-anchor="middle">MASTER_SUMMARY</text>
+<text x="826.6666666666667" y="2117.0" font-size="18" text-anchor="middle">BASINS / pandas</text>
 <path d="M1180.3333333333335 2080.0 L1193.3333333333335 2067.0 L1206.3333333333335 2080.0 L1193.3333333333335 2093.0 Z" fill="#f5f5f5" stroke="#666666" stroke-width="3"/>
 <text x="1193.3333333333335" y="2030.0" font-size="22" text-anchor="middle">Publish coherent</text>
 <text x="1193.3333333333335" y="2055.0" font-size="22" text-anchor="middle">output tree</text>
-<text x="1193.3333333333335" y="2117.0" font-size="18" text-anchor="middle">controller; atomic publication</text>
+<text x="1193.3333333333335" y="2117.0" font-size="18" text-anchor="middle">BASINS</text>
 <circle cx="1560.0" cy="2080.0" r="12" fill="#D5E8D4" stroke="#82B366" stroke-width="3"/>
 <text x="1560.0" y="2030.0" font-size="22" text-anchor="middle">Tables, plots, logs +</text>
 <text x="1560.0" y="2055.0" font-size="22" text-anchor="middle">BASIN_run_report.html</text>
 <path d="M473.0 2080.0 L813.6666666666667 2080.0" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M839.6666666666667 2080.0 L1180.3333333333335 2080.0" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M1206.3333333333335 2080.0 L1547.0 2080.0" fill="none" stroke="#111111" stroke-width="1.5" marker-end="url(#arrow)"/>
-<text x="1010" y="2178" font-size="18" text-anchor="middle">Environmental stages are ordered; diagrams group methods rather than prescribe scheduling</text>
 </g>
 </svg>

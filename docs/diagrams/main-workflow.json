@@ -3,12 +3,11 @@
   "inputs": [
     "Geochemistry / bottle measurements + CTD table + complete YAML configuration"
   ],
-  "controller": "BASINS + Nextflow DSL2 \u2022 Local controller with task environments",
-  "execution": "run_basins_pipeline.sh \u2022 YAML configuration \u2022 Mamba environments \u2022 Native thread caps \u2022 Resume and stage-aware reruns",
+  "controller": "BASINS + Nextflow DSL2 • Local controller with task environments",
+  "execution": "run_basins_pipeline.sh • YAML configuration • Mamba environments • Native thread caps • Resume and stage-aware reruns",
   "rows": [
     {
       "title": "Observation integration",
-      "note": "",
       "nodes": [
         {
           "label": "Chemistry +\nCTD records",
@@ -17,12 +16,12 @@
         },
         {
           "label": "Match profile keys\nand nearest depth",
-          "tool": "BIOCHEM_MERGE",
+          "tool": "pandas",
           "kind": "compute"
         },
         {
           "label": "Resolve oxygen\nsource and provenance",
-          "tool": "CTD / chemistry fallback",
+          "tool": "BASINS / pandas",
           "kind": "compute"
         },
         {
@@ -34,7 +33,6 @@
     },
     {
       "title": "Physical structure",
-      "note": "",
       "nodes": [
         {
           "label": "Merged\nobservations",
@@ -48,12 +46,12 @@
         },
         {
           "label": "Derive water-column\nstructure",
-          "tool": "N\u00b2; MLD; PEA",
+          "tool": "NumPy",
           "kind": "compute"
         },
         {
           "label": "Evaluate renewal\nevent criteria",
-          "tool": "oxygen / nitrate; persistence",
+          "tool": "BASINS / pandas",
           "kind": "compute"
         },
         {
@@ -65,7 +63,6 @@
     },
     {
       "title": "Matrix engineering",
-      "note": "",
       "nodes": [
         {
           "label": "Merged chemistry +\nphysical variables",
@@ -74,17 +71,17 @@
         },
         {
           "label": "Rename / select\nnumeric measurements",
-          "tool": "configured feature set",
+          "tool": "pandas",
           "kind": "compute"
         },
         {
           "label": "Assess missingness\nand cutoff sensitivity",
-          "tool": "optional sensitivity stage",
+          "tool": "pandas",
           "kind": "compute"
         },
         {
           "label": "Depth-profile filling;\ntransform + scale",
-          "tool": "PCA preparation",
+          "tool": "scikit-learn",
           "kind": "compute"
         },
         {
@@ -96,7 +93,6 @@
     },
     {
       "title": "Environmental axes",
-      "note": "",
       "nodes": [
         {
           "label": "Prepared\nfeature matrix",
@@ -105,12 +101,12 @@
         },
         {
           "label": "Fit principal\ncomponents",
-          "tool": "PCA",
+          "tool": "scikit-learn",
           "kind": "compute"
         },
         {
           "label": "Export loadings\nand sample scores",
-          "tool": "variance / diagnostics",
+          "tool": "pandas / Matplotlib",
           "kind": "compute"
         },
         {
@@ -122,7 +118,6 @@
     },
     {
       "title": "Environmental compartments",
-      "note": "",
       "nodes": [
         {
           "label": "PCA scores +\noxygen measurements",
@@ -131,17 +126,17 @@
         },
         {
           "label": "Select K + fit\nmixture components",
-          "tool": "GMM",
+          "tool": "scikit-learn",
           "kind": "compute"
         },
         {
           "label": "Assign soft\noxygen categories",
-          "tool": "configured thresholds",
+          "tool": "NumPy",
           "kind": "compute"
         },
         {
           "label": "Combine oxygen\nand GMM membership",
-          "tool": "hybrid compartments",
+          "tool": "pandas",
           "kind": "compute"
         },
         {
@@ -153,7 +148,6 @@
     },
     {
       "title": "Compartment comparison",
-      "note": "",
       "nodes": [
         {
           "label": "Oxygen, GMM +\nhybrid assignments",
@@ -162,12 +156,12 @@
         },
         {
           "label": "Compare schemes\nand profile structure",
-          "tool": "BIOCHEM_COMPARE",
+          "tool": "pandas / SciPy",
           "kind": "compute"
         },
         {
           "label": "Subdivide oxygen\ncategories by GMM",
-          "tool": "BIOCHEM_SPLIT_O2_BY_GMM",
+          "tool": "pandas",
           "kind": "compute"
         },
         {
@@ -179,7 +173,6 @@
     },
     {
       "title": "Temporal structure",
-      "note": "",
       "nodes": [
         {
           "label": "Compartment labels +\nprofile chronology",
@@ -188,17 +181,17 @@
         },
         {
           "label": "Characterize\nstratification anomalies",
-          "tool": "BIOCHEM_STRAT_ANOMALY",
+          "tool": "NumPy / SciPy",
           "kind": "compute"
         },
         {
           "label": "Summarize transitions\nand succession",
-          "tool": "state graph",
+          "tool": "pandas",
           "kind": "compute"
         },
         {
           "label": "Associate features\nwith states",
-          "tool": "BIOCHEM_FEATURE_ASSOC",
+          "tool": "NumPy / pandas",
           "kind": "compute"
         },
         {
@@ -210,7 +203,6 @@
     },
     {
       "title": "Cruise-scale structure",
-      "note": "",
       "nodes": [
         {
           "label": "Environmental\ndepth profiles",
@@ -219,17 +211,17 @@
         },
         {
           "label": "Remove baseline;\nconstruct EOF representation",
-          "tool": "BIOCHEM_EOF_PIPELINE",
+          "tool": "scikit-learn",
           "kind": "compute"
         },
         {
           "label": "Group cruises;\nassess stability",
-          "tool": "BIOCHEM_EOF_STATE_CLUSTER",
+          "tool": "scikit-learn",
           "kind": "compute"
         },
         {
           "label": "Inspect modes and\nseason relationships",
-          "tool": "BIOCHEM_EOF_MODE_PLOTS",
+          "tool": "Matplotlib",
           "kind": "compute"
         },
         {
@@ -241,7 +233,6 @@
     },
     {
       "title": "Local structure",
-      "note": "",
       "nodes": [
         {
           "label": "Environmental matrix +\nGMM assignments",
@@ -255,7 +246,7 @@
         },
         {
           "label": "Render continuous\ntime-depth sections",
-          "tool": "optional section stage",
+          "tool": "SciPy / Matplotlib",
           "kind": "compute"
         },
         {
@@ -267,7 +258,6 @@
     },
     {
       "title": "Results and report",
-      "note": "Environmental stages are ordered; diagrams group methods rather than prescribe scheduling",
       "nodes": [
         {
           "label": "Completed environmental\nanalyses",
@@ -276,12 +266,12 @@
         },
         {
           "label": "Gather supported\nscientific products",
-          "tool": "MASTER_SUMMARY",
+          "tool": "BASINS / pandas",
           "kind": "compute"
         },
         {
           "label": "Publish coherent\noutput tree",
-          "tool": "controller; atomic publication",
+          "tool": "BASINS",
           "kind": "compute"
         },
         {
